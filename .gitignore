@@ -40,6 +40,7 @@ diff.txt
 # dbs
 *.db
 *.sqlite
+*.sqlite*
 *.db-journal
 *.db-shm
 *.db-wal
