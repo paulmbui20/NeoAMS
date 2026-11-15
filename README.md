@@ -1,4 +1,4 @@
-# neoams
+# NeoAMS
 
 To install dependencies:
 
