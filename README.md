@@ -135,6 +135,16 @@ bun run start
 
 ---
 
+## API Documentation
+
+Interactive API documentation powered by **Scalar** is available at:
+
+```
+http://localhost:3000/reference
+```
+
+---
+
 ## API Overview
 
 | Route | Method | Description | Access |

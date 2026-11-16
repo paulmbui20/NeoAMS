@@ -1,6 +1,8 @@
 // src/app.ts
 import fastifyCors from "@fastify/cors";
 import fastifyRateLimit from "@fastify/rate-limit";
+import fastifySwagger from "@fastify/swagger";
+import scalarApiReference from "@scalar/fastify-api-reference";
 import Fastify from "fastify";
 import type { Container } from "./container";
 import type { Actor } from "./core/actor";
@@ -40,6 +42,34 @@ export function buildApp(c: Container) {
     maxAge: 86400,
   });
   app.register(fastifyRateLimit, { max: 300, timeWindow: "1 minute" }); // global ceiling; public routes tighten it
+
+  // API documentation with Swagger & Scalar
+  app.register(fastifySwagger, {
+    openapi: {
+      info: {
+        title: "NeoAMS API Reference",
+        description:
+          "High-performance accommodation and booking management engine for Bed & Breakfasts and boutique hotels.",
+        version: "1.0.0",
+      },
+      tags: [
+        { name: "Auth", description: "Authentication & session management" },
+        { name: "Me", description: "Current authenticated user & guest profile" },
+        { name: "Public", description: "Public booking & availability endpoints" },
+        { name: "Staff Bookings", description: "Property booking management" },
+        { name: "Staff Billing", description: "Payments, proofs & invoices" },
+        { name: "Staff Guests", description: "Guest directory & desk lookup" },
+      ],
+    },
+  });
+
+  app.register(scalarApiReference, {
+    routePrefix: "/reference",
+    configuration: {
+      theme: "purple",
+      layout: "modern",
+    },
+  });
 
   app.register(authRoutes(c.auth));
   app.register(publicBookingRoutes(deps), { prefix: "/api/v1/public" });
