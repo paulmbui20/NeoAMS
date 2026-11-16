@@ -1,35 +1,28 @@
-import "dotenv/config";
-import Fastify from "fastify";
 import fastifyCors from "@fastify/cors";
+import { fromNodeHeaders } from "better-auth/node";
+import Fastify from "fastify";
 import { auth } from "./auth";
+import { env } from "./env";
 
 const fastify = Fastify({ logger: true });
 
-// 1. Configure CORS for cookies/credentials
 await fastify.register(fastifyCors, {
-  origin: process.env.FRONTEND_URL!,
-  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  origin: env.FRONTEND_URL,
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
   credentials: true,
   maxAge: 86400,
 });
 
-// 2. Register Better Auth catch-all route
 fastify.route({
   method: ["GET", "POST"],
   url: "/api/auth/*",
   async handler(request, reply) {
     try {
       const url = new URL(request.url, `http://${request.headers.host}`);
-      const headers = new Headers();
-
-      Object.entries(request.headers).forEach(([key, value]) => {
-        if (value) headers.append(key, value.toString());
-      });
-
       const req = new Request(url.toString(), {
         method: request.method,
-        headers,
+        headers: fromNodeHeaders(request.headers),
         ...(request.body ? { body: JSON.stringify(request.body) } : {}),
       });
 
@@ -45,19 +38,12 @@ fastify.route({
   },
 });
 
-// 3. Example protected route checking the session
 fastify.get("/api/me", async (request, reply) => {
-  const headers = new Headers();
-  Object.entries(request.headers).forEach(([key, value]) => {
-    if (value) headers.append(key, value.toString());
+  const session = await auth.api.getSession({
+    headers: fromNodeHeaders(request.headers),
   });
-
-  const session = await auth.api.getSession({ headers });
-  if (!session) {
-    return reply.status(401).send({ error: "Unauthorized" });
-  }
-
+  if (!session) return reply.status(401).send({ error: "Unauthorized" });
   return { user: session.user, session: session.session };
 });
 
-await fastify.listen({ port: 3000 });
+await fastify.listen({ port: env.PORT, host: "0.0.0.0" });

@@ -1,10 +1,8 @@
 {
   "version": "7",
   "dialect": "sqlite",
-  "id": "683add17-688f-4e6d-9aa6-8eb077aafafa",
-  "prevIds": [
-    "00000000-0000-0000-0000-000000000000"
-  ],
+  "id": "7cb5bd04-f265-488c-9451-6c59e9c19420",
+  "prevIds": ["00000000-0000-0000-0000-000000000000"],
   "ddl": [
     {
       "name": "account",
@@ -59,19 +57,7 @@
       "entityType": "tables"
     },
     {
-      "name": "refunds",
-      "entityType": "tables"
-    },
-    {
       "name": "reviews",
-      "entityType": "tables"
-    },
-    {
-      "name": "rooms",
-      "entityType": "tables"
-    },
-    {
-      "name": "room_images",
       "entityType": "tables"
     },
     {
@@ -79,7 +65,15 @@
       "entityType": "tables"
     },
     {
+      "name": "room_type_images",
+      "entityType": "tables"
+    },
+    {
       "name": "room_types",
+      "entityType": "tables"
+    },
+    {
+      "name": "rooms",
       "entityType": "tables"
     },
     {
@@ -355,7 +349,7 @@
     {
       "table": "audit_logs",
       "name": "entity_id",
-      "type": "integer",
+      "type": "text",
       "notNull": false,
       "autoincrement": false,
       "default": null,
@@ -488,7 +482,7 @@
       "type": "integer",
       "notNull": true,
       "autoincrement": false,
-      "default": null,
+      "default": "0",
       "generated": null,
       "entityType": "columns"
     },
@@ -684,6 +678,16 @@
     },
     {
       "table": "expenses",
+      "name": "recorded_by",
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "expenses",
       "name": "created_at",
       "type": "integer",
       "notNull": true,
@@ -796,16 +800,6 @@
       "table": "guests",
       "name": "id_type",
       "type": "text",
-      "notNull": true,
-      "autoincrement": false,
-      "default": "'national_id'",
-      "generated": null,
-      "entityType": "columns"
-    },
-    {
-      "table": "guests",
-      "name": "id_number",
-      "type": "text",
       "notNull": false,
       "autoincrement": false,
       "default": null,
@@ -814,8 +808,8 @@
     },
     {
       "table": "guests",
-      "name": "age",
-      "type": "integer",
+      "name": "id_number",
+      "type": "text",
       "notNull": false,
       "autoincrement": false,
       "default": null,
@@ -836,19 +830,9 @@
       "table": "guests",
       "name": "gender",
       "type": "text",
-      "notNull": true,
+      "notNull": false,
       "autoincrement": false,
-      "default": "'male'",
-      "generated": null,
-      "entityType": "columns"
-    },
-    {
-      "table": "guests",
-      "name": "is_primary_guest",
-      "type": "integer",
-      "notNull": true,
-      "autoincrement": false,
-      "default": "true",
+      "default": null,
       "generated": null,
       "entityType": "columns"
     },
@@ -969,6 +953,26 @@
       "notNull": true,
       "autoincrement": false,
       "default": "'pending'",
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "payments",
+      "name": "refund_of_payment_id",
+      "type": "integer",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "payments",
+      "name": "reason",
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
       "generated": null,
       "entityType": "columns"
     },
@@ -1114,8 +1118,18 @@
     },
     {
       "table": "properties",
-      "name": "location_coordinates",
-      "type": "text",
+      "name": "latitude",
+      "type": "real",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "properties",
+      "name": "longitude",
+      "type": "real",
       "notNull": false,
       "autoincrement": false,
       "default": null,
@@ -1333,86 +1347,6 @@
       "entityType": "columns"
     },
     {
-      "table": "refunds",
-      "name": "id",
-      "type": "integer",
-      "notNull": false,
-      "autoincrement": true,
-      "default": null,
-      "generated": null,
-      "entityType": "columns"
-    },
-    {
-      "table": "refunds",
-      "name": "payment_id",
-      "type": "integer",
-      "notNull": true,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "entityType": "columns"
-    },
-    {
-      "table": "refunds",
-      "name": "amount_cents",
-      "type": "integer",
-      "notNull": true,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "entityType": "columns"
-    },
-    {
-      "table": "refunds",
-      "name": "reason",
-      "type": "text",
-      "notNull": false,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "entityType": "columns"
-    },
-    {
-      "table": "refunds",
-      "name": "status",
-      "type": "text",
-      "notNull": true,
-      "autoincrement": false,
-      "default": "'pending'",
-      "generated": null,
-      "entityType": "columns"
-    },
-    {
-      "table": "refunds",
-      "name": "refunded_at",
-      "type": "integer",
-      "notNull": true,
-      "autoincrement": false,
-      "default": "(cast(unixepoch('subsecond') * 1000 as integer))",
-      "generated": null,
-      "entityType": "columns"
-    },
-    {
-      "table": "refunds",
-      "name": "created_at",
-      "type": "integer",
-      "notNull": true,
-      "autoincrement": false,
-      "default": "(cast(unixepoch('subsecond') * 1000 as integer))",
-      "generated": null,
-      "entityType": "columns"
-    },
-    {
-      "table": "refunds",
-      "name": "updated_at",
-      "type": "integer",
-      "notNull": true,
-      "autoincrement": false,
-      "default": "(cast(unixepoch('subsecond') * 1000 as integer))",
-      "generated": null,
-      "entityType": "columns"
-    },
-    {
       "table": "reviews",
       "name": "id",
       "type": "integer",
@@ -1425,16 +1359,6 @@
     {
       "table": "reviews",
       "name": "booking_id",
-      "type": "integer",
-      "notNull": true,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "entityType": "columns"
-    },
-    {
-      "table": "reviews",
-      "name": "guest_id",
       "type": "integer",
       "notNull": true,
       "autoincrement": false,
@@ -1494,6 +1418,246 @@
     },
     {
       "table": "reviews",
+      "name": "updated_at",
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": "(cast(unixepoch('subsecond') * 1000 as integer))",
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "room_type_amenities",
+      "name": "id",
+      "type": "integer",
+      "notNull": false,
+      "autoincrement": true,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "room_type_amenities",
+      "name": "room_type_id",
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "room_type_amenities",
+      "name": "amenity_id",
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "room_type_amenities",
+      "name": "created_at",
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": "(cast(unixepoch('subsecond') * 1000 as integer))",
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "room_type_amenities",
+      "name": "updated_at",
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": "(cast(unixepoch('subsecond') * 1000 as integer))",
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "room_type_images",
+      "name": "id",
+      "type": "integer",
+      "notNull": false,
+      "autoincrement": true,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "room_type_images",
+      "name": "room_type_id",
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "room_type_images",
+      "name": "image_url",
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "room_type_images",
+      "name": "alt_text",
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "room_type_images",
+      "name": "is_primary",
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": "false",
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "room_type_images",
+      "name": "created_at",
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": "(cast(unixepoch('subsecond') * 1000 as integer))",
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "room_type_images",
+      "name": "updated_at",
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": "(cast(unixepoch('subsecond') * 1000 as integer))",
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "room_types",
+      "name": "id",
+      "type": "integer",
+      "notNull": false,
+      "autoincrement": true,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "room_types",
+      "name": "property_id",
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "room_types",
+      "name": "name",
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "room_types",
+      "name": "slug",
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "room_types",
+      "name": "description",
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "room_types",
+      "name": "price_per_night_cents",
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "room_types",
+      "name": "price_per_hour_cents",
+      "type": "integer",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "room_types",
+      "name": "max_occupancy",
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": "2",
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "room_types",
+      "name": "bed_configuration",
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "room_types",
+      "name": "is_active",
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": "true",
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "room_types",
+      "name": "created_at",
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": "(cast(unixepoch('subsecond') * 1000 as integer))",
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "room_types",
       "name": "updated_at",
       "type": "integer",
       "notNull": true,
@@ -1594,236 +1758,6 @@
     },
     {
       "table": "rooms",
-      "name": "updated_at",
-      "type": "integer",
-      "notNull": true,
-      "autoincrement": false,
-      "default": "(cast(unixepoch('subsecond') * 1000 as integer))",
-      "generated": null,
-      "entityType": "columns"
-    },
-    {
-      "table": "room_images",
-      "name": "id",
-      "type": "integer",
-      "notNull": false,
-      "autoincrement": true,
-      "default": null,
-      "generated": null,
-      "entityType": "columns"
-    },
-    {
-      "table": "room_images",
-      "name": "room_id",
-      "type": "integer",
-      "notNull": true,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "entityType": "columns"
-    },
-    {
-      "table": "room_images",
-      "name": "image_url",
-      "type": "text",
-      "notNull": true,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "entityType": "columns"
-    },
-    {
-      "table": "room_images",
-      "name": "alt_text",
-      "type": "text",
-      "notNull": false,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "entityType": "columns"
-    },
-    {
-      "table": "room_images",
-      "name": "created_at",
-      "type": "integer",
-      "notNull": true,
-      "autoincrement": false,
-      "default": "(cast(unixepoch('subsecond') * 1000 as integer))",
-      "generated": null,
-      "entityType": "columns"
-    },
-    {
-      "table": "room_images",
-      "name": "updated_at",
-      "type": "integer",
-      "notNull": true,
-      "autoincrement": false,
-      "default": "(cast(unixepoch('subsecond') * 1000 as integer))",
-      "generated": null,
-      "entityType": "columns"
-    },
-    {
-      "table": "room_type_amenities",
-      "name": "id",
-      "type": "integer",
-      "notNull": false,
-      "autoincrement": true,
-      "default": null,
-      "generated": null,
-      "entityType": "columns"
-    },
-    {
-      "table": "room_type_amenities",
-      "name": "room_type_id",
-      "type": "integer",
-      "notNull": true,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "entityType": "columns"
-    },
-    {
-      "table": "room_type_amenities",
-      "name": "amenity_id",
-      "type": "integer",
-      "notNull": true,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "entityType": "columns"
-    },
-    {
-      "table": "room_type_amenities",
-      "name": "created_at",
-      "type": "integer",
-      "notNull": true,
-      "autoincrement": false,
-      "default": "(cast(unixepoch('subsecond') * 1000 as integer))",
-      "generated": null,
-      "entityType": "columns"
-    },
-    {
-      "table": "room_type_amenities",
-      "name": "updated_at",
-      "type": "integer",
-      "notNull": true,
-      "autoincrement": false,
-      "default": "(cast(unixepoch('subsecond') * 1000 as integer))",
-      "generated": null,
-      "entityType": "columns"
-    },
-    {
-      "table": "room_types",
-      "name": "id",
-      "type": "integer",
-      "notNull": false,
-      "autoincrement": true,
-      "default": null,
-      "generated": null,
-      "entityType": "columns"
-    },
-    {
-      "table": "room_types",
-      "name": "property_id",
-      "type": "integer",
-      "notNull": true,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "entityType": "columns"
-    },
-    {
-      "table": "room_types",
-      "name": "name",
-      "type": "text",
-      "notNull": true,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "entityType": "columns"
-    },
-    {
-      "table": "room_types",
-      "name": "description",
-      "type": "text",
-      "notNull": false,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "entityType": "columns"
-    },
-    {
-      "table": "room_types",
-      "name": "price_per_night_cents",
-      "type": "integer",
-      "notNull": true,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "entityType": "columns"
-    },
-    {
-      "table": "room_types",
-      "name": "price_per_hour_cents",
-      "type": "integer",
-      "notNull": false,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "entityType": "columns"
-    },
-    {
-      "table": "room_types",
-      "name": "max_occupancy",
-      "type": "integer",
-      "notNull": true,
-      "autoincrement": false,
-      "default": "2",
-      "generated": null,
-      "entityType": "columns"
-    },
-    {
-      "table": "room_types",
-      "name": "bed_configuration",
-      "type": "text",
-      "notNull": false,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "entityType": "columns"
-    },
-    {
-      "table": "room_types",
-      "name": "is_active",
-      "type": "integer",
-      "notNull": true,
-      "autoincrement": false,
-      "default": "true",
-      "generated": null,
-      "entityType": "columns"
-    },
-    {
-      "table": "room_types",
-      "name": "total_rooms",
-      "type": "integer",
-      "notNull": true,
-      "autoincrement": false,
-      "default": "0",
-      "generated": null,
-      "entityType": "columns"
-    },
-    {
-      "table": "room_types",
-      "name": "created_at",
-      "type": "integer",
-      "notNull": true,
-      "autoincrement": false,
-      "default": "(cast(unixepoch('subsecond') * 1000 as integer))",
-      "generated": null,
-      "entityType": "columns"
-    },
-    {
-      "table": "room_types",
       "name": "updated_at",
       "type": "integer",
       "notNull": true,
@@ -2044,26 +1978,6 @@
     },
     {
       "table": "session",
-      "name": "created_at",
-      "type": "integer",
-      "notNull": true,
-      "autoincrement": false,
-      "default": "(cast(unixepoch('subsecond') * 1000 as integer))",
-      "generated": null,
-      "entityType": "columns"
-    },
-    {
-      "table": "session",
-      "name": "updated_at",
-      "type": "integer",
-      "notNull": true,
-      "autoincrement": false,
-      "default": "(cast(unixepoch('subsecond') * 1000 as integer))",
-      "generated": null,
-      "entityType": "columns"
-    },
-    {
-      "table": "session",
       "name": "ip_address",
       "type": "text",
       "notNull": false,
@@ -2089,6 +2003,26 @@
       "notNull": true,
       "autoincrement": false,
       "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "session",
+      "name": "created_at",
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": "(cast(unixepoch('subsecond') * 1000 as integer))",
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "session",
+      "name": "updated_at",
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": "(cast(unixepoch('subsecond') * 1000 as integer))",
       "generated": null,
       "entityType": "columns"
     },
@@ -2148,7 +2082,7 @@
       "type": "text",
       "notNull": true,
       "autoincrement": false,
-      "default": "'guest'",
+      "default": "'user'",
       "generated": null,
       "entityType": "columns"
     },
@@ -2234,7 +2168,7 @@
     },
     {
       "table": "account",
-      "name": "account_userId_idx",
+      "name": "account_user_idx",
       "columns": [
         {
           "value": "user_id",
@@ -2248,7 +2182,7 @@
     },
     {
       "table": "additional_guests",
-      "name": "addtl_gsts_bk_gst_uniq_idx",
+      "name": "additional_guests_booking_guest_uq",
       "columns": [
         {
           "value": "booking_id",
@@ -2266,21 +2200,7 @@
     },
     {
       "table": "additional_guests",
-      "name": "addtl_gsts_bk_idx",
-      "columns": [
-        {
-          "value": "booking_id",
-          "isExpression": false
-        }
-      ],
-      "isUnique": false,
-      "where": null,
-      "origin": "manual",
-      "entityType": "indexes"
-    },
-    {
-      "table": "additional_guests",
-      "name": "addtl_gsts_gst_idx",
+      "name": "additional_guests_guest_idx",
       "columns": [
         {
           "value": "guest_id",
@@ -2294,7 +2214,7 @@
     },
     {
       "table": "audit_logs",
-      "name": "audit_user_idx",
+      "name": "audit_logs_user_idx",
       "columns": [
         {
           "value": "user_id",
@@ -2308,7 +2228,7 @@
     },
     {
       "table": "audit_logs",
-      "name": "audit_entity_idx",
+      "name": "audit_logs_entity_idx",
       "columns": [
         {
           "value": "entity",
@@ -2326,7 +2246,7 @@
     },
     {
       "table": "bookings",
-      "name": "bkngs_gst_idx",
+      "name": "bookings_guest_idx",
       "columns": [
         {
           "value": "guest_id",
@@ -2340,50 +2260,12 @@
     },
     {
       "table": "bookings",
-      "name": "bkngs_rm_idx",
+      "name": "bookings_room_dates_idx",
       "columns": [
         {
           "value": "room_id",
           "isExpression": false
-        }
-      ],
-      "isUnique": false,
-      "where": null,
-      "origin": "manual",
-      "entityType": "indexes"
-    },
-    {
-      "table": "bookings",
-      "name": "bkngs_bk_rf_code_idx",
-      "columns": [
-        {
-          "value": "booking_reference_code",
-          "isExpression": false
-        }
-      ],
-      "isUnique": false,
-      "where": null,
-      "origin": "manual",
-      "entityType": "indexes"
-    },
-    {
-      "table": "bookings",
-      "name": "bkngs_stts_idx",
-      "columns": [
-        {
-          "value": "status",
-          "isExpression": false
-        }
-      ],
-      "isUnique": false,
-      "where": null,
-      "origin": "manual",
-      "entityType": "indexes"
-    },
-    {
-      "table": "bookings",
-      "name": "bkngs_dates_idx",
-      "columns": [
+        },
         {
           "value": "check_in_date",
           "isExpression": false
@@ -2400,7 +2282,21 @@
     },
     {
       "table": "bookings",
-      "name": "bkngs_created_by_idx",
+      "name": "bookings_status_idx",
+      "columns": [
+        {
+          "value": "status",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "origin": "manual",
+      "entityType": "indexes"
+    },
+    {
+      "table": "bookings",
+      "name": "bookings_created_by_idx",
       "columns": [
         {
           "value": "created_by",
@@ -2414,7 +2310,7 @@
     },
     {
       "table": "expenses",
-      "name": "exps_prop_date_idx",
+      "name": "expenses_property_date_idx",
       "columns": [
         {
           "value": "property_id",
@@ -2432,7 +2328,7 @@
     },
     {
       "table": "expenses",
-      "name": "exps_cat_idx",
+      "name": "expenses_category_idx",
       "columns": [
         {
           "value": "category_id",
@@ -2446,21 +2342,39 @@
     },
     {
       "table": "guests",
-      "name": "gsts_user_id_idx",
+      "name": "guests_user_uq",
       "columns": [
         {
           "value": "user_id",
           "isExpression": false
         }
       ],
-      "isUnique": false,
+      "isUnique": true,
       "where": null,
       "origin": "manual",
       "entityType": "indexes"
     },
     {
       "table": "guests",
-      "name": "gsts_phone_idx",
+      "name": "guests_id_uq",
+      "columns": [
+        {
+          "value": "id_type",
+          "isExpression": false
+        },
+        {
+          "value": "id_number",
+          "isExpression": false
+        }
+      ],
+      "isUnique": true,
+      "where": null,
+      "origin": "manual",
+      "entityType": "indexes"
+    },
+    {
+      "table": "guests",
+      "name": "guests_phone_idx",
       "columns": [
         {
           "value": "phone",
@@ -2474,7 +2388,7 @@
     },
     {
       "table": "guests",
-      "name": "gsts_email_idx",
+      "name": "guests_email_idx",
       "columns": [
         {
           "value": "email",
@@ -2487,26 +2401,8 @@
       "entityType": "indexes"
     },
     {
-      "table": "guests",
-      "name": "gsts_id_number_idx",
-      "columns": [
-        {
-          "value": "id_type",
-          "isExpression": false
-        },
-        {
-          "value": "id_number",
-          "isExpression": false
-        }
-      ],
-      "isUnique": false,
-      "where": null,
-      "origin": "manual",
-      "entityType": "indexes"
-    },
-    {
       "table": "payments",
-      "name": "pmts_bk_idx",
+      "name": "payments_booking_idx",
       "columns": [
         {
           "value": "booking_id",
@@ -2520,7 +2416,7 @@
     },
     {
       "table": "payments",
-      "name": "pmts_stts_idx",
+      "name": "payments_status_idx",
       "columns": [
         {
           "value": "status",
@@ -2534,7 +2430,7 @@
     },
     {
       "table": "payments",
-      "name": "pmts_recorded_by_idx",
+      "name": "payments_recorded_by_idx",
       "columns": [
         {
           "value": "recorded_by",
@@ -2548,7 +2444,7 @@
     },
     {
       "table": "property_amenities",
-      "name": "prop_amnty_uniq_idx",
+      "name": "property_amenities_property_amenity_uq",
       "columns": [
         {
           "value": "property_id",
@@ -2566,21 +2462,7 @@
     },
     {
       "table": "property_amenities",
-      "name": "prop_amnty_prop_idx",
-      "columns": [
-        {
-          "value": "property_id",
-          "isExpression": false
-        }
-      ],
-      "isUnique": false,
-      "where": null,
-      "origin": "manual",
-      "entityType": "indexes"
-    },
-    {
-      "table": "property_amenities",
-      "name": "prop_amnty_amnty_idx",
+      "name": "property_amenities_amenity_idx",
       "columns": [
         {
           "value": "amenity_id",
@@ -2594,7 +2476,7 @@
     },
     {
       "table": "property_images",
-      "name": "prop_img_uniq_idx",
+      "name": "property_images_property_url_uq",
       "columns": [
         {
           "value": "property_id",
@@ -2612,21 +2494,21 @@
     },
     {
       "table": "property_images",
-      "name": "prop_img_prop_idx",
+      "name": "property_images_primary_uq",
       "columns": [
         {
           "value": "property_id",
           "isExpression": false
         }
       ],
-      "isUnique": false,
-      "where": null,
+      "isUnique": true,
+      "where": "\"property_images\".\"is_primary\" = 1",
       "origin": "manual",
       "entityType": "indexes"
     },
     {
       "table": "property_staff",
-      "name": "prop_staff_uniq_idx",
+      "name": "property_staff_property_user_uq",
       "columns": [
         {
           "value": "property_id",
@@ -2644,21 +2526,7 @@
     },
     {
       "table": "property_staff",
-      "name": "prop_staff_prop_idx",
-      "columns": [
-        {
-          "value": "property_id",
-          "isExpression": false
-        }
-      ],
-      "isUnique": false,
-      "where": null,
-      "origin": "manual",
-      "entityType": "indexes"
-    },
-    {
-      "table": "property_staff",
-      "name": "prop_staff_user_idx",
+      "name": "property_staff_user_idx",
       "columns": [
         {
           "value": "user_id",
@@ -2671,50 +2539,8 @@
       "entityType": "indexes"
     },
     {
-      "table": "refunds",
-      "name": "rfds_stts_idx",
-      "columns": [
-        {
-          "value": "status",
-          "isExpression": false
-        }
-      ],
-      "isUnique": false,
-      "where": null,
-      "origin": "manual",
-      "entityType": "indexes"
-    },
-    {
-      "table": "refunds",
-      "name": "rfds_pmts_id_idx",
-      "columns": [
-        {
-          "value": "payment_id",
-          "isExpression": false
-        }
-      ],
-      "isUnique": false,
-      "where": null,
-      "origin": "manual",
-      "entityType": "indexes"
-    },
-    {
-      "table": "refunds",
-      "name": "rfds_pmts_id_uq",
-      "columns": [
-        {
-          "value": "payment_id",
-          "isExpression": false
-        }
-      ],
-      "isUnique": true,
-      "where": null,
-      "origin": "manual",
-      "entityType": "indexes"
-    },
-    {
       "table": "reviews",
-      "name": "revws_bkng_uq",
+      "name": "reviews_booking_uq",
       "columns": [
         {
           "value": "booking_id",
@@ -2727,11 +2553,29 @@
       "entityType": "indexes"
     },
     {
-      "table": "reviews",
-      "name": "revws_guest_idx",
+      "table": "room_type_amenities",
+      "name": "room_type_amenities_type_amenity_uq",
       "columns": [
         {
-          "value": "guest_id",
+          "value": "room_type_id",
+          "isExpression": false
+        },
+        {
+          "value": "amenity_id",
+          "isExpression": false
+        }
+      ],
+      "isUnique": true,
+      "where": null,
+      "origin": "manual",
+      "entityType": "indexes"
+    },
+    {
+      "table": "room_type_amenities",
+      "name": "room_type_amenities_amenity_idx",
+      "columns": [
+        {
+          "value": "amenity_id",
           "isExpression": false
         }
       ],
@@ -2741,8 +2585,58 @@
       "entityType": "indexes"
     },
     {
+      "table": "room_type_images",
+      "name": "room_type_images_type_url_uq",
+      "columns": [
+        {
+          "value": "room_type_id",
+          "isExpression": false
+        },
+        {
+          "value": "image_url",
+          "isExpression": false
+        }
+      ],
+      "isUnique": true,
+      "where": null,
+      "origin": "manual",
+      "entityType": "indexes"
+    },
+    {
+      "table": "room_type_images",
+      "name": "room_type_images_primary_uq",
+      "columns": [
+        {
+          "value": "room_type_id",
+          "isExpression": false
+        }
+      ],
+      "isUnique": true,
+      "where": "\"room_type_images\".\"is_primary\" = 1",
+      "origin": "manual",
+      "entityType": "indexes"
+    },
+    {
+      "table": "room_types",
+      "name": "room_types_property_slug_uq",
+      "columns": [
+        {
+          "value": "property_id",
+          "isExpression": false
+        },
+        {
+          "value": "slug",
+          "isExpression": false
+        }
+      ],
+      "isUnique": true,
+      "where": null,
+      "origin": "manual",
+      "entityType": "indexes"
+    },
+    {
       "table": "rooms",
-      "name": "rm_uniq_idx",
+      "name": "rooms_property_number_uq",
       "columns": [
         {
           "value": "property_id",
@@ -2760,36 +2654,12 @@
     },
     {
       "table": "rooms",
-      "name": "rm_prop_idx",
+      "name": "rooms_property_status_idx",
       "columns": [
         {
           "value": "property_id",
           "isExpression": false
-        }
-      ],
-      "isUnique": false,
-      "where": null,
-      "origin": "manual",
-      "entityType": "indexes"
-    },
-    {
-      "table": "rooms",
-      "name": "rm_typ_idx",
-      "columns": [
-        {
-          "value": "room_type_id",
-          "isExpression": false
-        }
-      ],
-      "isUnique": false,
-      "where": null,
-      "origin": "manual",
-      "entityType": "indexes"
-    },
-    {
-      "table": "rooms",
-      "name": "rm_stts_idx",
-      "columns": [
+        },
         {
           "value": "status",
           "isExpression": false
@@ -2801,89 +2671,11 @@
       "entityType": "indexes"
     },
     {
-      "table": "room_images",
-      "name": "rm_img_uniq_idx",
-      "columns": [
-        {
-          "value": "room_id",
-          "isExpression": false
-        },
-        {
-          "value": "image_url",
-          "isExpression": false
-        }
-      ],
-      "isUnique": true,
-      "where": null,
-      "origin": "manual",
-      "entityType": "indexes"
-    },
-    {
-      "table": "room_images",
-      "name": "rm_img_rm_idx",
-      "columns": [
-        {
-          "value": "room_id",
-          "isExpression": false
-        }
-      ],
-      "isUnique": false,
-      "where": null,
-      "origin": "manual",
-      "entityType": "indexes"
-    },
-    {
-      "table": "room_type_amenities",
-      "name": "rm_typ_amty_uniq_idx",
+      "table": "rooms",
+      "name": "rooms_type_idx",
       "columns": [
         {
           "value": "room_type_id",
-          "isExpression": false
-        },
-        {
-          "value": "amenity_id",
-          "isExpression": false
-        }
-      ],
-      "isUnique": true,
-      "where": null,
-      "origin": "manual",
-      "entityType": "indexes"
-    },
-    {
-      "table": "room_type_amenities",
-      "name": "rm_typ_amty_rm_idx",
-      "columns": [
-        {
-          "value": "room_type_id",
-          "isExpression": false
-        }
-      ],
-      "isUnique": false,
-      "where": null,
-      "origin": "manual",
-      "entityType": "indexes"
-    },
-    {
-      "table": "room_type_amenities",
-      "name": "rm_typ_amty_amnty_idx",
-      "columns": [
-        {
-          "value": "amenity_id",
-          "isExpression": false
-        }
-      ],
-      "isUnique": false,
-      "where": null,
-      "origin": "manual",
-      "entityType": "indexes"
-    },
-    {
-      "table": "room_types",
-      "name": "rm_typ_prop_idx",
-      "columns": [
-        {
-          "value": "property_id",
           "isExpression": false
         }
       ],
@@ -2894,7 +2686,7 @@
     },
     {
       "table": "service_bookings",
-      "name": "svcs_bkngs_bk_id_idx",
+      "name": "service_bookings_booking_idx",
       "columns": [
         {
           "value": "booking_id",
@@ -2908,7 +2700,7 @@
     },
     {
       "table": "service_bookings",
-      "name": "svcs_bkngs_svc_id_idx",
+      "name": "service_bookings_service_idx",
       "columns": [
         {
           "value": "service_id",
@@ -2922,8 +2714,12 @@
     },
     {
       "table": "services",
-      "name": "svcs_slug_uq",
+      "name": "services_property_slug_uq",
       "columns": [
+        {
+          "value": "property_id",
+          "isExpression": false
+        },
         {
           "value": "slug",
           "isExpression": false
@@ -2936,35 +2732,7 @@
     },
     {
       "table": "services",
-      "name": "svcs_prop_id_idx",
-      "columns": [
-        {
-          "value": "property_id",
-          "isExpression": false
-        }
-      ],
-      "isUnique": false,
-      "where": null,
-      "origin": "manual",
-      "entityType": "indexes"
-    },
-    {
-      "table": "services",
-      "name": "svcs_slug_idx",
-      "columns": [
-        {
-          "value": "slug",
-          "isExpression": false
-        }
-      ],
-      "isUnique": false,
-      "where": null,
-      "origin": "manual",
-      "entityType": "indexes"
-    },
-    {
-      "table": "services",
-      "name": "svcs_actv_idx",
+      "name": "services_active_idx",
       "columns": [
         {
           "value": "is_active",
@@ -2978,7 +2746,7 @@
     },
     {
       "table": "session",
-      "name": "session_userId_idx",
+      "name": "session_user_idx",
       "columns": [
         {
           "value": "user_id",
@@ -3007,13 +2775,9 @@
     {
       "table": "account",
       "name": "fk_account_user_id_user_id_fk",
-      "columns": [
-        "user_id"
-      ],
+      "columns": ["user_id"],
       "tableTo": "user",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "CASCADE",
       "nameExplicit": false,
@@ -3022,13 +2786,9 @@
     {
       "table": "additional_guests",
       "name": "fk_additional_guests_booking_id_bookings_id_fk",
-      "columns": [
-        "booking_id"
-      ],
+      "columns": ["booking_id"],
       "tableTo": "bookings",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "CASCADE",
       "nameExplicit": false,
@@ -3037,13 +2797,9 @@
     {
       "table": "additional_guests",
       "name": "fk_additional_guests_guest_id_guests_id_fk",
-      "columns": [
-        "guest_id"
-      ],
+      "columns": ["guest_id"],
       "tableTo": "guests",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "CASCADE",
       "nameExplicit": false,
@@ -3052,13 +2808,9 @@
     {
       "table": "audit_logs",
       "name": "fk_audit_logs_user_id_user_id_fk",
-      "columns": [
-        "user_id"
-      ],
+      "columns": ["user_id"],
       "tableTo": "user",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "SET NULL",
       "nameExplicit": false,
@@ -3067,13 +2819,9 @@
     {
       "table": "bookings",
       "name": "fk_bookings_guest_id_guests_id_fk",
-      "columns": [
-        "guest_id"
-      ],
+      "columns": ["guest_id"],
       "tableTo": "guests",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "RESTRICT",
       "nameExplicit": false,
@@ -3082,13 +2830,9 @@
     {
       "table": "bookings",
       "name": "fk_bookings_room_id_rooms_id_fk",
-      "columns": [
-        "room_id"
-      ],
+      "columns": ["room_id"],
       "tableTo": "rooms",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "RESTRICT",
       "nameExplicit": false,
@@ -3097,13 +2841,9 @@
     {
       "table": "bookings",
       "name": "fk_bookings_created_by_user_id_fk",
-      "columns": [
-        "created_by"
-      ],
+      "columns": ["created_by"],
       "tableTo": "user",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "SET NULL",
       "nameExplicit": false,
@@ -3112,43 +2852,42 @@
     {
       "table": "expenses",
       "name": "fk_expenses_property_id_properties_id_fk",
-      "columns": [
-        "property_id"
-      ],
+      "columns": ["property_id"],
       "tableTo": "properties",
-      "columnsTo": [
-        "id"
-      ],
-      "onUpdate": "NO ACTION",
-      "onDelete": "CASCADE",
-      "nameExplicit": false,
-      "entityType": "fks"
-    },
-    {
-      "table": "expenses",
-      "name": "fk_expenses_category_id_expense_categories_id_fk",
-      "columns": [
-        "category_id"
-      ],
-      "tableTo": "expense_categories",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "RESTRICT",
       "nameExplicit": false,
       "entityType": "fks"
     },
     {
+      "table": "expenses",
+      "name": "fk_expenses_category_id_expense_categories_id_fk",
+      "columns": ["category_id"],
+      "tableTo": "expense_categories",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "RESTRICT",
+      "nameExplicit": false,
+      "entityType": "fks"
+    },
+    {
+      "table": "expenses",
+      "name": "fk_expenses_recorded_by_user_id_fk",
+      "columns": ["recorded_by"],
+      "tableTo": "user",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "SET NULL",
+      "nameExplicit": false,
+      "entityType": "fks"
+    },
+    {
       "table": "guests",
       "name": "fk_guests_user_id_user_id_fk",
-      "columns": [
-        "user_id"
-      ],
+      "columns": ["user_id"],
       "tableTo": "user",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "SET NULL",
       "nameExplicit": false,
@@ -3157,13 +2896,20 @@
     {
       "table": "payments",
       "name": "fk_payments_booking_id_bookings_id_fk",
-      "columns": [
-        "booking_id"
-      ],
+      "columns": ["booking_id"],
       "tableTo": "bookings",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "RESTRICT",
+      "nameExplicit": false,
+      "entityType": "fks"
+    },
+    {
+      "table": "payments",
+      "name": "fk_payments_refund_of_payment_id_payments_id_fk",
+      "columns": ["refund_of_payment_id"],
+      "tableTo": "payments",
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "RESTRICT",
       "nameExplicit": false,
@@ -3172,13 +2918,9 @@
     {
       "table": "payments",
       "name": "fk_payments_recorded_by_user_id_fk",
-      "columns": [
-        "recorded_by"
-      ],
+      "columns": ["recorded_by"],
       "tableTo": "user",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "SET NULL",
       "nameExplicit": false,
@@ -3187,13 +2929,9 @@
     {
       "table": "property_amenities",
       "name": "fk_property_amenities_property_id_properties_id_fk",
-      "columns": [
-        "property_id"
-      ],
+      "columns": ["property_id"],
       "tableTo": "properties",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "CASCADE",
       "nameExplicit": false,
@@ -3202,13 +2940,9 @@
     {
       "table": "property_amenities",
       "name": "fk_property_amenities_amenity_id_amenities_id_fk",
-      "columns": [
-        "amenity_id"
-      ],
+      "columns": ["amenity_id"],
       "tableTo": "amenities",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "CASCADE",
       "nameExplicit": false,
@@ -3217,13 +2951,9 @@
     {
       "table": "property_images",
       "name": "fk_property_images_property_id_properties_id_fk",
-      "columns": [
-        "property_id"
-      ],
+      "columns": ["property_id"],
       "tableTo": "properties",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "CASCADE",
       "nameExplicit": false,
@@ -3232,13 +2962,9 @@
     {
       "table": "property_staff",
       "name": "fk_property_staff_property_id_properties_id_fk",
-      "columns": [
-        "property_id"
-      ],
+      "columns": ["property_id"],
       "tableTo": "properties",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "CASCADE",
       "nameExplicit": false,
@@ -3247,103 +2973,20 @@
     {
       "table": "property_staff",
       "name": "fk_property_staff_user_id_user_id_fk",
-      "columns": [
-        "user_id"
-      ],
+      "columns": ["user_id"],
       "tableTo": "user",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "CASCADE",
-      "nameExplicit": false,
-      "entityType": "fks"
-    },
-    {
-      "table": "refunds",
-      "name": "fk_refunds_payment_id_payments_id_fk",
-      "columns": [
-        "payment_id"
-      ],
-      "tableTo": "payments",
-      "columnsTo": [
-        "id"
-      ],
-      "onUpdate": "NO ACTION",
-      "onDelete": "RESTRICT",
       "nameExplicit": false,
       "entityType": "fks"
     },
     {
       "table": "reviews",
       "name": "fk_reviews_booking_id_bookings_id_fk",
-      "columns": [
-        "booking_id"
-      ],
+      "columns": ["booking_id"],
       "tableTo": "bookings",
-      "columnsTo": [
-        "id"
-      ],
-      "onUpdate": "NO ACTION",
-      "onDelete": "CASCADE",
-      "nameExplicit": false,
-      "entityType": "fks"
-    },
-    {
-      "table": "reviews",
-      "name": "fk_reviews_guest_id_guests_id_fk",
-      "columns": [
-        "guest_id"
-      ],
-      "tableTo": "guests",
-      "columnsTo": [
-        "id"
-      ],
-      "onUpdate": "NO ACTION",
-      "onDelete": "CASCADE",
-      "nameExplicit": false,
-      "entityType": "fks"
-    },
-    {
-      "table": "rooms",
-      "name": "fk_rooms_property_id_properties_id_fk",
-      "columns": [
-        "property_id"
-      ],
-      "tableTo": "properties",
-      "columnsTo": [
-        "id"
-      ],
-      "onUpdate": "NO ACTION",
-      "onDelete": "CASCADE",
-      "nameExplicit": false,
-      "entityType": "fks"
-    },
-    {
-      "table": "rooms",
-      "name": "fk_rooms_room_type_id_room_types_id_fk",
-      "columns": [
-        "room_type_id"
-      ],
-      "tableTo": "room_types",
-      "columnsTo": [
-        "id"
-      ],
-      "onUpdate": "NO ACTION",
-      "onDelete": "RESTRICT",
-      "nameExplicit": false,
-      "entityType": "fks"
-    },
-    {
-      "table": "room_images",
-      "name": "fk_room_images_room_id_rooms_id_fk",
-      "columns": [
-        "room_id"
-      ],
-      "tableTo": "rooms",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "CASCADE",
       "nameExplicit": false,
@@ -3352,13 +2995,9 @@
     {
       "table": "room_type_amenities",
       "name": "fk_room_type_amenities_room_type_id_room_types_id_fk",
-      "columns": [
-        "room_type_id"
-      ],
+      "columns": ["room_type_id"],
       "tableTo": "room_types",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "CASCADE",
       "nameExplicit": false,
@@ -3367,13 +3006,20 @@
     {
       "table": "room_type_amenities",
       "name": "fk_room_type_amenities_amenity_id_amenities_id_fk",
-      "columns": [
-        "amenity_id"
-      ],
+      "columns": ["amenity_id"],
       "tableTo": "amenities",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "nameExplicit": false,
+      "entityType": "fks"
+    },
+    {
+      "table": "room_type_images",
+      "name": "fk_room_type_images_room_type_id_room_types_id_fk",
+      "columns": ["room_type_id"],
+      "tableTo": "room_types",
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "CASCADE",
       "nameExplicit": false,
@@ -3382,28 +3028,42 @@
     {
       "table": "room_types",
       "name": "fk_room_types_property_id_properties_id_fk",
-      "columns": [
-        "property_id"
-      ],
+      "columns": ["property_id"],
       "tableTo": "properties",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "CASCADE",
       "nameExplicit": false,
       "entityType": "fks"
     },
     {
+      "table": "rooms",
+      "name": "fk_rooms_property_id_properties_id_fk",
+      "columns": ["property_id"],
+      "tableTo": "properties",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "nameExplicit": false,
+      "entityType": "fks"
+    },
+    {
+      "table": "rooms",
+      "name": "fk_rooms_room_type_id_room_types_id_fk",
+      "columns": ["room_type_id"],
+      "tableTo": "room_types",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "RESTRICT",
+      "nameExplicit": false,
+      "entityType": "fks"
+    },
+    {
       "table": "service_bookings",
       "name": "fk_service_bookings_booking_id_bookings_id_fk",
-      "columns": [
-        "booking_id"
-      ],
+      "columns": ["booking_id"],
       "tableTo": "bookings",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "CASCADE",
       "nameExplicit": false,
@@ -3412,28 +3072,20 @@
     {
       "table": "service_bookings",
       "name": "fk_service_bookings_service_id_services_id_fk",
-      "columns": [
-        "service_id"
-      ],
+      "columns": ["service_id"],
       "tableTo": "services",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
-      "onDelete": "CASCADE",
+      "onDelete": "RESTRICT",
       "nameExplicit": false,
       "entityType": "fks"
     },
     {
       "table": "services",
       "name": "fk_services_property_id_properties_id_fk",
-      "columns": [
-        "property_id"
-      ],
+      "columns": ["property_id"],
       "tableTo": "properties",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "CASCADE",
       "nameExplicit": false,
@@ -3442,13 +3094,9 @@
     {
       "table": "session",
       "name": "fk_session_user_id_user_id_fk",
-      "columns": [
-        "user_id"
-      ],
+      "columns": ["user_id"],
       "tableTo": "user",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "CASCADE",
       "nameExplicit": false,
@@ -3457,295 +3105,289 @@
     {
       "table": "account",
       "name": "account_pk",
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "entityType": "pks"
     },
     {
       "table": "additional_guests",
       "name": "additional_guests_pk",
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "entityType": "pks"
     },
     {
       "table": "amenities",
       "name": "amenities_pk",
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "entityType": "pks"
     },
     {
       "table": "audit_logs",
       "name": "audit_logs_pk",
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "entityType": "pks"
     },
     {
       "table": "bookings",
       "name": "bookings_pk",
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "entityType": "pks"
     },
     {
       "table": "expense_categories",
       "name": "expense_categories_pk",
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "entityType": "pks"
     },
     {
       "table": "expenses",
       "name": "expenses_pk",
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "entityType": "pks"
     },
     {
       "table": "guests",
       "name": "guests_pk",
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "entityType": "pks"
     },
     {
       "table": "payments",
       "name": "payments_pk",
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "entityType": "pks"
     },
     {
       "table": "properties",
       "name": "properties_pk",
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "entityType": "pks"
     },
     {
       "table": "property_amenities",
       "name": "property_amenities_pk",
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "entityType": "pks"
     },
     {
       "table": "property_images",
       "name": "property_images_pk",
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "entityType": "pks"
     },
     {
       "table": "property_staff",
       "name": "property_staff_pk",
-      "columns": [
-        "id"
-      ],
-      "nameExplicit": false,
-      "entityType": "pks"
-    },
-    {
-      "table": "refunds",
-      "name": "refunds_pk",
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "entityType": "pks"
     },
     {
       "table": "reviews",
       "name": "reviews_pk",
-      "columns": [
-        "id"
-      ],
-      "nameExplicit": false,
-      "entityType": "pks"
-    },
-    {
-      "table": "rooms",
-      "name": "rooms_pk",
-      "columns": [
-        "id"
-      ],
-      "nameExplicit": false,
-      "entityType": "pks"
-    },
-    {
-      "table": "room_images",
-      "name": "room_images_pk",
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "entityType": "pks"
     },
     {
       "table": "room_type_amenities",
       "name": "room_type_amenities_pk",
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
+      "nameExplicit": false,
+      "entityType": "pks"
+    },
+    {
+      "table": "room_type_images",
+      "name": "room_type_images_pk",
+      "columns": ["id"],
       "nameExplicit": false,
       "entityType": "pks"
     },
     {
       "table": "room_types",
       "name": "room_types_pk",
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
+      "nameExplicit": false,
+      "entityType": "pks"
+    },
+    {
+      "table": "rooms",
+      "name": "rooms_pk",
+      "columns": ["id"],
       "nameExplicit": false,
       "entityType": "pks"
     },
     {
       "table": "service_bookings",
       "name": "service_bookings_pk",
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "entityType": "pks"
     },
     {
       "table": "services",
       "name": "services_pk",
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "entityType": "pks"
     },
     {
       "table": "session",
       "name": "session_pk",
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "entityType": "pks"
     },
     {
       "table": "user",
       "name": "user_pk",
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "entityType": "pks"
     },
     {
       "table": "verification",
       "name": "verification_pk",
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "entityType": "pks"
     },
     {
+      "table": "amenities",
+      "name": "amenities_name_unique",
+      "columns": ["name"],
+      "nameExplicit": false,
+      "entityType": "uniques"
+    },
+    {
       "table": "bookings",
       "name": "bookings_booking_reference_code_unique",
-      "columns": [
-        "booking_reference_code"
-      ],
+      "columns": ["booking_reference_code"],
       "nameExplicit": false,
       "entityType": "uniques"
     },
     {
       "table": "expense_categories",
       "name": "expense_categories_name_unique",
-      "columns": [
-        "name"
-      ],
+      "columns": ["name"],
       "nameExplicit": false,
       "entityType": "uniques"
     },
     {
       "table": "payments",
       "name": "payments_transaction_reference_code_unique",
-      "columns": [
-        "transaction_reference_code"
-      ],
+      "columns": ["transaction_reference_code"],
       "nameExplicit": false,
       "entityType": "uniques"
     },
     {
       "table": "properties",
       "name": "properties_slug_unique",
-      "columns": [
-        "slug"
-      ],
+      "columns": ["slug"],
       "nameExplicit": false,
       "entityType": "uniques"
     },
     {
       "table": "session",
       "name": "session_token_unique",
-      "columns": [
-        "token"
-      ],
+      "columns": ["token"],
       "nameExplicit": false,
       "entityType": "uniques"
     },
     {
       "table": "user",
       "name": "user_email_unique",
-      "columns": [
-        "email"
-      ],
+      "columns": ["email"],
       "nameExplicit": false,
       "entityType": "uniques"
     },
     {
-      "table": "refunds",
-      "name": "rfds_amt_chk",
+      "table": "bookings",
+      "name": "bookings_dates_chk",
+      "value": "\"check_out_date\" > \"check_in_date\"",
+      "entityType": "checks"
+    },
+    {
+      "table": "bookings",
+      "name": "bookings_people_chk",
+      "value": "\"adults\" >= 1 AND \"children\" >= 0",
+      "entityType": "checks"
+    },
+    {
+      "table": "bookings",
+      "name": "bookings_money_chk",
+      "value": "\"total_cost_cents\" >= 0 AND \"deposit_required_cents\" >= 0 AND \"deposit_required_cents\" <= \"total_cost_cents\"",
+      "entityType": "checks"
+    },
+    {
+      "table": "expenses",
+      "name": "expenses_amount_chk",
+      "value": "\"amount_cents\" > 0",
+      "entityType": "checks"
+    },
+    {
+      "table": "guests",
+      "name": "guests_id_pair_chk",
+      "value": "(\"id_type\" IS NULL) = (\"id_number\" IS NULL)",
+      "entityType": "checks"
+    },
+    {
+      "table": "payments",
+      "name": "payments_amount_chk",
       "value": "\"amount_cents\" > 0",
       "entityType": "checks"
     },
     {
       "table": "reviews",
-      "name": "revws_rtng_chk",
+      "name": "reviews_rating_chk",
       "value": "\"rating\" BETWEEN 1 AND 5",
       "entityType": "checks"
     },
     {
+      "table": "room_types",
+      "name": "room_types_night_price_chk",
+      "value": "\"price_per_night_cents\" >= 0",
+      "entityType": "checks"
+    },
+    {
+      "table": "room_types",
+      "name": "room_types_hour_price_chk",
+      "value": "\"price_per_hour_cents\" IS NULL OR \"price_per_hour_cents\" >= 0",
+      "entityType": "checks"
+    },
+    {
+      "table": "room_types",
+      "name": "room_types_occupancy_chk",
+      "value": "\"max_occupancy\" >= 1",
+      "entityType": "checks"
+    },
+    {
       "table": "service_bookings",
-      "name": "svcs_bkngs_qty_chk",
+      "name": "service_bookings_qty_chk",
       "value": "\"quantity\" > 0",
       "entityType": "checks"
     },
     {
+      "table": "service_bookings",
+      "name": "service_bookings_subtotal_chk",
+      "value": "\"subtotal_cents\" = \"quantity\" * \"unit_price_cents\"",
+      "entityType": "checks"
+    },
+    {
       "table": "services",
-      "name": "svcs_price_chk",
-      "value": "\"price_cents\" > 0",
+      "name": "services_price_chk",
+      "value": "\"price_cents\" >= 0",
       "entityType": "checks"
     }
   ],
