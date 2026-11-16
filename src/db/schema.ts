@@ -9,7 +9,7 @@ import {
 } from "drizzle-orm/sqlite-core";
 
 // ==========================================
-// COMMON TYPES
+// COMMON TYPES & HELPERS
 // ==========================================
 
 const createdAt = () =>
@@ -122,34 +122,6 @@ export const verification = sqliteTable(
   (table) => [index("verification_identifier_idx").on(table.identifier)],
 );
 
-export const relations = defineRelations(
-  {
-    user,
-    session,
-    account,
-  },
-  (r) => ({
-    user: {
-      sessions: r.many.session(),
-      accounts: r.many.account(),
-    },
-
-    session: {
-      user: r.one.user({
-        from: r.session.userId,
-        to: r.user.id,
-      }),
-    },
-
-    account: {
-      user: r.one.user({
-        from: r.account.userId,
-        to: r.user.id,
-      }),
-    },
-  }),
-);
-
 // ==========================================
 // 1. PROPERTIES
 // ==========================================
@@ -173,7 +145,38 @@ export const properties = sqliteTable("properties", {
 });
 
 // ==========================================
-// 2. PROPERTY IMAGES
+// 2. PROPERTY STAFF / USER ASSIGNMENTS
+// ==========================================
+
+export const propertyStaff = sqliteTable(
+  "property_staff",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+
+    propertyId: integer("property_id")
+      .notNull()
+      .references(() => properties.id, { onDelete: "cascade" }),
+
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+
+    role: text("role", {
+      enum: ["owner", "manager", "receptionist", "accountant", "staff"],
+    }).notNull(),
+
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [
+    uniqueIndex("prop_staff_uniq_idx").on(table.propertyId, table.userId),
+    index("prop_staff_prop_idx").on(table.propertyId),
+    index("prop_staff_user_idx").on(table.userId),
+  ],
+);
+
+// ==========================================
+// 3. PROPERTY IMAGES
 // ==========================================
 
 export const propertyImages = sqliteTable(
@@ -183,7 +186,7 @@ export const propertyImages = sqliteTable(
 
     propertyId: integer("property_id")
       .notNull()
-      .references(() => properties.id),
+      .references(() => properties.id, { onDelete: "cascade" }),
 
     imageUrl: text("image_url").notNull(),
     altText: text("alt_text"),
@@ -202,7 +205,7 @@ export const propertyImages = sqliteTable(
 );
 
 // ==========================================
-// 3. AMENITIES
+// 4. AMENITIES
 // ==========================================
 
 export const amenities = sqliteTable("amenities", {
@@ -212,7 +215,7 @@ export const amenities = sqliteTable("amenities", {
 });
 
 // ==========================================
-// 4. PROPERTY AMENITIES
+// 5. PROPERTY AMENITIES
 // ==========================================
 
 export const propertyAmenities = sqliteTable(
@@ -222,11 +225,11 @@ export const propertyAmenities = sqliteTable(
 
     propertyId: integer("property_id")
       .notNull()
-      .references(() => properties.id),
+      .references(() => properties.id, { onDelete: "cascade" }),
 
     amenityId: integer("amenity_id")
       .notNull()
-      .references(() => amenities.id),
+      .references(() => amenities.id, { onDelete: "cascade" }),
 
     createdAt: createdAt(),
     updatedAt: updatedAt(),
@@ -239,7 +242,7 @@ export const propertyAmenities = sqliteTable(
 );
 
 // ==========================================
-// 5. ROOM TYPES
+// 6. ROOM TYPES
 // ==========================================
 
 export const roomTypes = sqliteTable(
@@ -254,13 +257,13 @@ export const roomTypes = sqliteTable(
     name: text("name").notNull(), // "Single", "Double", "Suite", "Deluxe", "Executive", "Family", "Studio", "Penthouse"
 
     description: text("description"),
-    pricePerNightCents: integer("price_per_night_cents").notNull(), // or 12 hours
+    pricePerNightCents: integer("price_per_night_cents").notNull(),
     pricePerHourCents: integer("price_per_hour_cents"),
     maxOccupancy: integer("max_occupancy").notNull().default(2),
     bedConfiguration: text("bed_configuration"), // "1 King", "2 Twin"
     isActive: integer("is_active", { mode: "boolean" }).notNull().default(true),
 
-    availableRooms: integer("available_rooms").notNull(), // Number of such available rooms in the property eg. 5
+    totalRooms: integer("total_rooms").notNull().default(0), // Total capacity of this room type; live availability is derived dynamically
 
     createdAt: createdAt(),
     updatedAt: updatedAt(),
@@ -269,7 +272,7 @@ export const roomTypes = sqliteTable(
 );
 
 // ==========================================
-// 6. ROOMS
+// 7. ROOMS
 // ==========================================
 
 export const room = sqliteTable(
@@ -285,9 +288,16 @@ export const room = sqliteTable(
       .notNull()
       .references(() => roomTypes.id, { onDelete: "restrict" }),
 
-    roomNumber: integer("room_number").notNull(),
+    roomNumber: text("room_number").notNull(), // text allows alphanumeric numbers like "101A", "Penthouse-B"
     floor: text("floor"),
     description: text("description"),
+
+    status: text("status", {
+      enum: ["available", "occupied", "dirty", "maintenance", "out_of_order"],
+    })
+      .notNull()
+      .default("available"),
+
     isActive: integer("is_active", { mode: "boolean" }).notNull().default(true),
 
     createdAt: createdAt(),
@@ -297,11 +307,12 @@ export const room = sqliteTable(
     uniqueIndex("rm_uniq_idx").on(table.propertyId, table.roomNumber),
     index("rm_prop_idx").on(table.propertyId),
     index("rm_typ_idx").on(table.roomTypeId),
+    index("rm_stts_idx").on(table.status),
   ],
 );
 
 // ==========================================
-// 7. ROOM IMAGES
+// 8. ROOM IMAGES
 // ==========================================
 
 export const roomImages = sqliteTable(
@@ -311,7 +322,7 @@ export const roomImages = sqliteTable(
 
     roomId: integer("room_id")
       .notNull()
-      .references(() => room.id),
+      .references(() => room.id, { onDelete: "cascade" }),
 
     imageUrl: text("image_url").notNull(),
     altText: text("alt_text"),
@@ -326,7 +337,7 @@ export const roomImages = sqliteTable(
 );
 
 // ==========================================
-// 8. ROOM TYPE AMENITIES
+// 9. ROOM TYPE AMENITIES
 // ==========================================
 
 export const roomTypeAmenities = sqliteTable(
@@ -353,54 +364,63 @@ export const roomTypeAmenities = sqliteTable(
 );
 
 // ==========================================
-// 9. GUESTS
+// 10. GUESTS
 // ==========================================
 
-export const guests = sqliteTable("guests", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const guests = sqliteTable(
+  "guests",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
 
-  userId: integer("user_id").references(() => user.id, {
-    onDelete: "set null",
-  }), // null if the guest is not a user(not doing self service check-in), or if the user is deleted
+    userId: text("user_id").references(() => user.id, {
+      onDelete: "set null",
+    }), // null if the guest is not a user (e.g. walk-in or manual entry)
 
-  firstName: text("first_name").notNull(),
-  middleName: text("middle_name"),
-  lastName: text("last_name").notNull(),
-  email: text("email").unique(),
-  phone: text("phone").notNull().unique(),
-  country: text("country"), // country of origin
-  nationality: text("nationality"), // nationality
+    firstName: text("first_name").notNull(),
+    middleName: text("middle_name"),
+    lastName: text("last_name").notNull(),
+    email: text("email"),
+    phone: text("phone").notNull(),
+    country: text("country"), // country of origin
+    nationality: text("nationality"),
 
-  idType: text("id_type", {
-    enum: ["national_id", "passport", "drivers_license", "other"],
-  })
-    .notNull()
-    .default("national_id"), // "National ID", "Passport", "Driver's License", "Other"
+    idType: text("id_type", {
+      enum: ["national_id", "passport", "drivers_license", "other"],
+    })
+      .notNull()
+      .default("national_id"),
 
-  idNumber: text("id_number").notNull().unique(),
+    idNumber: text("id_number"),
 
-  age: integer("age"), // calculated from date of birth
-  dateOfBirth: text("date_of_birth"), // date of birth in yyyy-mm-dd format
+    age: integer("age"),
+    dateOfBirth: text("date_of_birth"), // YYYY-MM-DD
 
-  gender: text("gender", {
-    enum: ["male", "female", "other"],
-  })
-    .notNull()
-    .default("male"), // gender either male, female or other
+    gender: text("gender", {
+      enum: ["male", "female", "other"],
+    })
+      .notNull()
+      .default("male"),
 
-  isPrimaryGuest: integer("is_primary_guest", { mode: "boolean" })
-    .notNull()
-    .default(true),
+    isPrimaryGuest: integer("is_primary_guest", { mode: "boolean" })
+      .notNull()
+      .default(true),
 
-  address: text("address"),
-  notes: text("notes"),
+    address: text("address"),
+    notes: text("notes"),
 
-  createdAt: createdAt(),
-  updatedAt: updatedAt(),
-});
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [
+    index("gsts_user_id_idx").on(table.userId),
+    index("gsts_phone_idx").on(table.phone),
+    index("gsts_email_idx").on(table.email),
+    index("gsts_id_number_idx").on(table.idType, table.idNumber),
+  ],
+);
 
 // ==========================================
-// 10. BOOKINGS
+// 11. BOOKINGS
 // ==========================================
 
 export const bookings = sqliteTable(
@@ -416,7 +436,7 @@ export const bookings = sqliteTable(
       .notNull()
       .references(() => room.id, { onDelete: "restrict" }),
 
-    bookingReferenceCode: text("booking_reference_code").notNull().unique(), // autogenerated alphanumeric code with prefix "NEOAMS-BK-" eg "NEOAMS-BK-1234567890" that is unique for each booking
+    bookingReferenceCode: text("booking_reference_code").notNull().unique(), // autogenerated e.g. "NEOAMS-BK-1234567890"
 
     status: text("status", {
       enum: [
@@ -448,7 +468,7 @@ export const bookings = sqliteTable(
       .notNull()
       .default("walk_in"),
 
-    createdBy: integer("created_by").references(() => user.id, {
+    createdBy: text("created_by").references(() => user.id, {
       onDelete: "set null",
     }),
 
@@ -461,11 +481,12 @@ export const bookings = sqliteTable(
     index("bkngs_bk_rf_code_idx").on(table.bookingReferenceCode),
     index("bkngs_stts_idx").on(table.status),
     index("bkngs_dates_idx").on(table.checkInDate, table.checkOutDate),
+    index("bkngs_created_by_idx").on(table.createdBy),
   ],
 );
 
 // ==========================================
-// 11. ADDITIONAL BOOKING GUESTS
+// 12. ADDITIONAL BOOKING GUESTS
 // ==========================================
 
 export const additionalGuests = sqliteTable(
@@ -495,7 +516,7 @@ export const additionalGuests = sqliteTable(
 );
 
 // ==========================================
-// 12. PAYMENTS
+// 13. PAYMENTS
 // ==========================================
 
 export const payments = sqliteTable(
@@ -530,7 +551,7 @@ export const payments = sqliteTable(
       .notNull()
       .default("cash"),
 
-    transactionReferenceCode: text("transaction_reference_code").unique(), // auto generated unique alphanumeric code with prefix "NEOAMS-TRX-" eg "NEOAMS-TRX-1234567890" that is unique for each payment
+    transactionReferenceCode: text("transaction_reference_code").unique(), // e.g. "NEOAMS-TRX-1234567890"
 
     status: text("status", {
       enum: ["pending", "succeeded", "failed", "refunded"],
@@ -542,7 +563,7 @@ export const payments = sqliteTable(
       .notNull()
       .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`),
 
-    recordedBy: integer("recorded_by").references(() => user.id, {
+    recordedBy: text("recorded_by").references(() => user.id, {
       onDelete: "set null",
     }),
 
@@ -552,11 +573,12 @@ export const payments = sqliteTable(
   (table) => [
     index("pmts_bk_idx").on(table.bookingId),
     index("pmts_stts_idx").on(table.status),
+    index("pmts_recorded_by_idx").on(table.recordedBy),
   ],
 );
 
 // ==========================================
-// 13. REFUNDS
+// 14. REFUNDS
 // ==========================================
 
 export const refunds = sqliteTable(
@@ -566,9 +588,9 @@ export const refunds = sqliteTable(
 
     paymentId: integer("payment_id")
       .notNull()
-      .references(() => payments.id),
+      .references(() => payments.id, { onDelete: "restrict" }),
 
-    amount: integer("amount").notNull(),
+    amountCents: integer("amount_cents").notNull(),
 
     reason: text("reason"),
 
@@ -588,13 +610,13 @@ export const refunds = sqliteTable(
   (table) => [
     index("rfds_stts_idx").on(table.status),
     index("rfds_pmts_id_idx").on(table.paymentId),
-    check("rfds_amt_chk", sql`${table.amount} > 0`),
+    check("rfds_amt_chk", sql`${table.amountCents} > 0`),
     uniqueIndex("rfds_pmts_id_uq").on(table.paymentId),
   ],
 );
 
 // ==========================================
-// 14. REVIEWS
+// 15. REVIEWS
 // ==========================================
 
 export const reviews = sqliteTable(
@@ -624,11 +646,12 @@ export const reviews = sqliteTable(
   (table) => [
     uniqueIndex("revws_bkng_uq").on(table.bookingId),
     check("revws_rtng_chk", sql`${table.rating} BETWEEN 1 AND 5`),
+    index("revws_guest_idx").on(table.guestId),
   ],
 );
 
 // ==========================================
-// 15. SERVICES
+// 16. SERVICES
 // ==========================================
 
 export const services = sqliteTable(
@@ -646,7 +669,7 @@ export const services = sqliteTable(
 
     description: text("description"),
 
-    price: integer("price").notNull(),
+    priceCents: integer("price_cents").notNull(),
 
     isActive: integer("is_active", { mode: "boolean" }).notNull().default(true),
 
@@ -655,7 +678,7 @@ export const services = sqliteTable(
   },
   (table) => [
     uniqueIndex("svcs_slug_uq").on(table.slug),
-    check("svcs_price_chk", sql`${table.price} > 0`),
+    check("svcs_price_chk", sql`${table.priceCents} > 0`),
     index("svcs_prop_id_idx").on(table.propertyId),
     index("svcs_slug_idx").on(table.slug),
     index("svcs_actv_idx").on(table.isActive),
@@ -663,7 +686,7 @@ export const services = sqliteTable(
 );
 
 // ==========================================
-// 16. SERVICE BOOKINGS
+// 17. SERVICE BOOKINGS
 // ==========================================
 
 export const serviceBookings = sqliteTable(
@@ -681,9 +704,9 @@ export const serviceBookings = sqliteTable(
 
     quantity: integer("quantity").notNull().default(1),
 
-    unitPrice: integer("unit_price").notNull(),
+    unitPriceCents: integer("unit_price_cents").notNull(),
 
-    subtotal: integer("subtotal").notNull(),
+    subtotalCents: integer("subtotal_cents").notNull(),
 
     notes: text("notes"),
 
@@ -698,7 +721,7 @@ export const serviceBookings = sqliteTable(
 );
 
 // ==========================================
-// 17. EXPENSE CATEGORIES
+// 18. EXPENSE CATEGORIES
 // ==========================================
 
 export const expenseCategories = sqliteTable("expense_categories", {
@@ -710,7 +733,7 @@ export const expenseCategories = sqliteTable("expense_categories", {
 });
 
 // ==========================================
-// 18. EXPENSES
+// 19. EXPENSES
 // ==========================================
 
 export const expenses = sqliteTable(
@@ -720,21 +743,21 @@ export const expenses = sqliteTable(
 
     propertyId: integer("property_id")
       .notNull()
-      .references(() => properties.id),
+      .references(() => properties.id, { onDelete: "cascade" }),
 
     categoryId: integer("category_id")
       .notNull()
-      .references(() => expenseCategories.id),
+      .references(() => expenseCategories.id, { onDelete: "restrict" }),
 
     description: text("description").notNull(),
 
-    amount: integer("amount").notNull(),
+    amountCents: integer("amount_cents").notNull(),
 
     paymentMethod: text("payment_method"),
 
     reference: text("reference"),
 
-    expenseDate: text("expense_date").notNull(),
+    expenseDate: text("expense_date").notNull(), // YYYY-MM-DD
 
     notes: text("notes"),
 
@@ -743,11 +766,12 @@ export const expenses = sqliteTable(
   },
   (table) => [
     index("exps_prop_date_idx").on(table.propertyId, table.expenseDate),
+    index("exps_cat_idx").on(table.categoryId),
   ],
 );
 
 // ==========================================
-// 19. AUDIT LOGS
+// 20. AUDIT LOGS
 // ==========================================
 
 export const auditLogs = sqliteTable(
@@ -755,7 +779,7 @@ export const auditLogs = sqliteTable(
   {
     id: integer("id").primaryKey({ autoIncrement: true }),
 
-    userId: integer("user_id").references(() => user.id, {
+    userId: text("user_id").references(() => user.id, {
       onDelete: "set null",
     }),
 
@@ -777,4 +801,258 @@ export const auditLogs = sqliteTable(
     index("audit_user_idx").on(table.userId),
     index("audit_entity_idx").on(table.entity, table.entityId),
   ],
+);
+
+// ==========================================
+// RELATIONS
+// ==========================================
+
+export const relations = defineRelations(
+  {
+    user,
+    session,
+    account,
+    properties,
+    propertyStaff,
+    propertyImages,
+    amenities,
+    propertyAmenities,
+    roomTypes,
+    room,
+    roomImages,
+    roomTypeAmenities,
+    guests,
+    bookings,
+    additionalGuests,
+    payments,
+    refunds,
+    reviews,
+    services,
+    serviceBookings,
+    expenseCategories,
+    expenses,
+    auditLogs,
+  },
+  (r) => ({
+    user: {
+      sessions: r.many.session(),
+      accounts: r.many.account(),
+      staffAssignments: r.many.propertyStaff(),
+      createdBookings: r.many.bookings(),
+      recordedPayments: r.many.payments(),
+      auditLogs: r.many.auditLogs(),
+    },
+
+    session: {
+      user: r.one.user({
+        from: r.session.userId,
+        to: r.user.id,
+      }),
+    },
+
+    account: {
+      user: r.one.user({
+        from: r.account.userId,
+        to: r.user.id,
+      }),
+    },
+
+    properties: {
+      staff: r.many.propertyStaff(),
+      images: r.many.propertyImages(),
+      amenities: r.many.propertyAmenities(),
+      roomTypes: r.many.roomTypes(),
+      rooms: r.many.room(),
+      services: r.many.services(),
+      expenses: r.many.expenses(),
+    },
+
+    propertyStaff: {
+      property: r.one.properties({
+        from: r.propertyStaff.propertyId,
+        to: r.properties.id,
+      }),
+      user: r.one.user({
+        from: r.propertyStaff.userId,
+        to: r.user.id,
+      }),
+    },
+
+    propertyImages: {
+      property: r.one.properties({
+        from: r.propertyImages.propertyId,
+        to: r.properties.id,
+      }),
+    },
+
+    amenities: {
+      properties: r.many.propertyAmenities(),
+      roomTypes: r.many.roomTypeAmenities(),
+    },
+
+    propertyAmenities: {
+      property: r.one.properties({
+        from: r.propertyAmenities.propertyId,
+        to: r.properties.id,
+      }),
+      amenity: r.one.amenities({
+        from: r.propertyAmenities.amenityId,
+        to: r.amenities.id,
+      }),
+    },
+
+    roomTypes: {
+      property: r.one.properties({
+        from: r.roomTypes.propertyId,
+        to: r.properties.id,
+      }),
+      rooms: r.many.room(),
+      amenities: r.many.roomTypeAmenities(),
+    },
+
+    room: {
+      property: r.one.properties({
+        from: r.room.propertyId,
+        to: r.properties.id,
+      }),
+      roomType: r.one.roomTypes({
+        from: r.room.roomTypeId,
+        to: r.roomTypes.id,
+      }),
+      images: r.many.roomImages(),
+      bookings: r.many.bookings(),
+    },
+
+    roomImages: {
+      room: r.one.room({
+        from: r.roomImages.roomId,
+        to: r.room.id,
+      }),
+    },
+
+    roomTypeAmenities: {
+      roomType: r.one.roomTypes({
+        from: r.roomTypeAmenities.roomTypeId,
+        to: r.roomTypes.id,
+      }),
+      amenity: r.one.amenities({
+        from: r.roomTypeAmenities.amenityId,
+        to: r.amenities.id,
+      }),
+    },
+
+    guests: {
+      user: r.one.user({
+        from: r.guests.userId,
+        to: r.user.id,
+      }),
+      bookings: r.many.bookings(),
+      additionalBookingGuests: r.many.additionalGuests(),
+      reviews: r.many.reviews(),
+    },
+
+    bookings: {
+      guest: r.one.guests({
+        from: r.bookings.guestId,
+        to: r.guests.id,
+      }),
+      room: r.one.room({
+        from: r.bookings.roomId,
+        to: r.room.id,
+      }),
+      additionalGuests: r.many.additionalGuests(),
+      payments: r.many.payments(),
+      reviews: r.many.reviews(),
+      serviceBookings: r.many.serviceBookings(),
+      creator: r.one.user({
+        from: r.bookings.createdBy,
+        to: r.user.id,
+      }),
+    },
+
+    additionalGuests: {
+      booking: r.one.bookings({
+        from: r.additionalGuests.bookingId,
+        to: r.bookings.id,
+      }),
+      guest: r.one.guests({
+        from: r.additionalGuests.guestId,
+        to: r.guests.id,
+      }),
+    },
+
+    payments: {
+      booking: r.one.bookings({
+        from: r.payments.bookingId,
+        to: r.bookings.id,
+      }),
+      refund: r.one.refunds({
+        from: r.payments.id,
+        to: r.refunds.paymentId,
+      }),
+      recorder: r.one.user({
+        from: r.payments.recordedBy,
+        to: r.user.id,
+      }),
+    },
+
+    refunds: {
+      payment: r.one.payments({
+        from: r.refunds.paymentId,
+        to: r.payments.id,
+      }),
+    },
+
+    reviews: {
+      booking: r.one.bookings({
+        from: r.reviews.bookingId,
+        to: r.bookings.id,
+      }),
+      guest: r.one.guests({
+        from: r.reviews.guestId,
+        to: r.guests.id,
+      }),
+    },
+
+    services: {
+      property: r.one.properties({
+        from: r.services.propertyId,
+        to: r.properties.id,
+      }),
+      bookings: r.many.serviceBookings(),
+    },
+
+    serviceBookings: {
+      booking: r.one.bookings({
+        from: r.serviceBookings.bookingId,
+        to: r.bookings.id,
+      }),
+      service: r.one.services({
+        from: r.serviceBookings.serviceId,
+        to: r.services.id,
+      }),
+    },
+
+    expenseCategories: {
+      expenses: r.many.expenses(),
+    },
+
+    expenses: {
+      property: r.one.properties({
+        from: r.expenses.propertyId,
+        to: r.properties.id,
+      }),
+      category: r.one.expenseCategories({
+        from: r.expenses.categoryId,
+        to: r.expenseCategories.id,
+      }),
+    },
+
+    auditLogs: {
+      user: r.one.user({
+        from: r.auditLogs.userId,
+        to: r.user.id,
+      }),
+    },
+  }),
 );
