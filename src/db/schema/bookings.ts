@@ -7,7 +7,7 @@ import {
   text,
   uniqueIndex,
 } from "drizzle-orm/sqlite-core";
-import { bookingSources, bookingStatuses } from "../enums";
+import { bookingSources, bookingStatuses, rateTypes } from "../enums";
 import { user } from "./auth";
 import { guests } from "./guests";
 import { timestamps } from "./helpers";
@@ -37,6 +37,10 @@ export const bookings = sqliteTable(
     specialRequests: text("special_requests"),
     checkInDate: integer("check_in_date", { mode: "timestamp_ms" }).notNull(),
     checkOutDate: integer("check_out_date", { mode: "timestamp_ms" }).notNull(),
+    rateType: text("rate_type", { enum: rateTypes })
+      .notNull()
+      .default("nightly"),
+    holdExpiresAt: integer("hold_expires_at", { mode: "timestamp_ms" }), // null = never expires (desk bookings)
     source: text("source", { enum: bookingSources })
       .notNull()
       .default("walk_in"),

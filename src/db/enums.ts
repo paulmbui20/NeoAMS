@@ -52,3 +52,18 @@ export const paymentMethods = [
   "crypto",
   "other",
 ] as const;
+
+export const rateTypes = ["nightly", "hourly"] as const;
+export const paymentOptionKinds = [
+  "mpesa_till",
+  "mpesa_paybill",
+  "mpesa_send_money",
+  "bank_transfer",
+  "other",
+] as const;
+
+export type PropertyRole = (typeof propertyRoles)[number];
+export type RoomStatus = (typeof roomStatuses)[number];
+export type BookingStatus = (typeof bookingStatuses)[number];
+export type BookingSource = (typeof bookingSources)[number];
+export type PaymentMethod = (typeof paymentMethods)[number];

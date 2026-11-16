@@ -23,6 +23,7 @@ export const relations = defineRelations(schema, (r) => ({
     rooms: r.many.rooms(),
     services: r.many.services(),
     expenses: r.many.expenses(),
+    paymentOptions: r.many.paymentOptions(),
   },
   propertyStaff: {
     property: r.one.properties({
@@ -148,4 +149,11 @@ export const relations = defineRelations(schema, (r) => ({
   },
 
   auditLogs: { user: r.one.user({ from: r.auditLogs.userId, to: r.user.id }) },
+
+  paymentOptions: {
+    property: r.one.properties({
+      from: r.paymentOptions.propertyId,
+      to: r.properties.id,
+    }),
+  },
 }));

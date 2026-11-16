@@ -57,6 +57,8 @@ CREATE TABLE `bookings` (
 	`special_requests` text,
 	`check_in_date` integer NOT NULL,
 	`check_out_date` integer NOT NULL,
+	`rate_type` text DEFAULT 'nightly' NOT NULL,
+	`hold_expires_at` integer,
 	`source` text DEFAULT 'walk_in' NOT NULL,
 	`created_by` text,
 	`created_at` integer DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)) NOT NULL,
@@ -116,6 +118,21 @@ CREATE TABLE `guests` (
 	CONSTRAINT "guests_id_pair_chk" CHECK(("id_type" IS NULL) = ("id_number" IS NULL))
 );
 --> statement-breakpoint
+CREATE TABLE `payment_options` (
+	`id` integer PRIMARY KEY AUTOINCREMENT,
+	`property_id` integer NOT NULL,
+	`kind` text NOT NULL,
+	`label` text NOT NULL,
+	`account_number` text,
+	`account_name` text,
+	`instructions` text,
+	`sort_order` integer DEFAULT 0 NOT NULL,
+	`is_active` integer DEFAULT true NOT NULL,
+	`created_at` integer DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)) NOT NULL,
+	`updated_at` integer DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)) NOT NULL,
+	CONSTRAINT `fk_payment_options_property_id_properties_id_fk` FOREIGN KEY (`property_id`) REFERENCES `properties`(`id`) ON DELETE CASCADE
+);
+--> statement-breakpoint
 CREATE TABLE `payments` (
 	`id` integer PRIMARY KEY AUTOINCREMENT,
 	`booking_id` integer NOT NULL,
@@ -123,7 +140,8 @@ CREATE TABLE `payments` (
 	`amount_cents` integer NOT NULL,
 	`currency` text DEFAULT 'KES' NOT NULL,
 	`payment_method` text DEFAULT 'cash' NOT NULL,
-	`transaction_reference_code` text UNIQUE,
+	`transaction_reference_code` text,
+	`proof_message` text,
 	`status` text DEFAULT 'pending' NOT NULL,
 	`refund_of_payment_id` integer,
 	`reason` text,
@@ -151,8 +169,12 @@ CREATE TABLE `properties` (
 	`latitude` real,
 	`longitude` real,
 	`is_active` integer DEFAULT true NOT NULL,
+	`check_in_time` text NOT NULL,
+	`check_out_time` text NOT NULL,
+	`deposit_percent` integer DEFAULT 30 NOT NULL,
 	`created_at` integer DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)) NOT NULL,
-	`updated_at` integer DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)) NOT NULL
+	`updated_at` integer DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)) NOT NULL,
+	CONSTRAINT "properties_deposit_chk" CHECK("deposit_percent" BETWEEN 0 AND 100)
 );
 --> statement-breakpoint
 CREATE TABLE `property_amenities` (
@@ -332,9 +354,11 @@ CREATE UNIQUE INDEX `guests_user_uq` ON `guests` (`user_id`);--> statement-break
 CREATE UNIQUE INDEX `guests_id_uq` ON `guests` (`id_type`,`id_number`);--> statement-breakpoint
 CREATE INDEX `guests_phone_idx` ON `guests` (`phone`);--> statement-breakpoint
 CREATE INDEX `guests_email_idx` ON `guests` (`email`);--> statement-breakpoint
+CREATE INDEX `payment_options_property_idx` ON `payment_options` (`property_id`,`is_active`);--> statement-breakpoint
 CREATE INDEX `payments_booking_idx` ON `payments` (`booking_id`);--> statement-breakpoint
 CREATE INDEX `payments_status_idx` ON `payments` (`status`);--> statement-breakpoint
 CREATE INDEX `payments_recorded_by_idx` ON `payments` (`recorded_by`);--> statement-breakpoint
+CREATE UNIQUE INDEX `payments_txn_ref_uq` ON `payments` (`transaction_reference_code`) WHERE "payments"."status" <> 'failed';--> statement-breakpoint
 CREATE UNIQUE INDEX `property_amenities_property_amenity_uq` ON `property_amenities` (`property_id`,`amenity_id`);--> statement-breakpoint
 CREATE INDEX `property_amenities_amenity_idx` ON `property_amenities` (`amenity_id`);--> statement-breakpoint
 CREATE UNIQUE INDEX `property_images_property_url_uq` ON `property_images` (`property_id`,`image_url`);--> statement-breakpoint

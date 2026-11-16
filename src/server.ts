@@ -1,49 +1,22 @@
-import fastifyCors from "@fastify/cors";
-import { fromNodeHeaders } from "better-auth/node";
-import Fastify from "fastify";
-import { auth } from "./auth";
+// src/server.ts
+import { buildApp } from "./app";
+import { createContainer } from "./container";
 import { env } from "./env";
 
-const fastify = Fastify({ logger: true });
+const container = createContainer(env);
+const app = buildApp(container);
 
-await fastify.register(fastifyCors, {
-  origin: env.FRONTEND_URL,
-  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
-  credentials: true,
-  maxAge: 86400,
-});
+// Tidy expired holds. Availability already ignores them, so this is housekeeping, not correctness.
+setInterval(() => {
+  try {
+    const n = container.services.booking.expireHolds();
+    if (n) app.log.info({ expired: n }, "expired booking holds");
+  } catch (err) {
+    app.log.error(err);
+  }
+}, 60_000).unref();
 
-fastify.route({
-  method: ["GET", "POST"],
-  url: "/api/auth/*",
-  async handler(request, reply) {
-    try {
-      const url = new URL(request.url, `http://${request.headers.host}`);
-      const req = new Request(url.toString(), {
-        method: request.method,
-        headers: fromNodeHeaders(request.headers),
-        ...(request.body ? { body: JSON.stringify(request.body) } : {}),
-      });
+for (const sig of ["SIGINT", "SIGTERM"])
+  process.on(sig, () => void app.close());
 
-      const response = await auth.handler(req);
-
-      reply.status(response.status);
-      response.headers.forEach((value, key) => reply.header(key, value));
-      reply.send(response.body ? await response.text() : null);
-    } catch (error) {
-      fastify.log.error(error);
-      reply.status(500).send({ error: "Internal authentication error" });
-    }
-  },
-});
-
-fastify.get("/api/me", async (request, reply) => {
-  const session = await auth.api.getSession({
-    headers: fromNodeHeaders(request.headers),
-  });
-  if (!session) return reply.status(401).send({ error: "Unauthorized" });
-  return { user: session.user, session: session.session };
-});
-
-await fastify.listen({ port: env.PORT, host: "0.0.0.0" });
+await app.listen({ port: env.PORT, host: "0.0.0.0" });

@@ -6,27 +6,37 @@ import {
   sqliteTable,
   text,
   uniqueIndex,
+  check,
 } from "drizzle-orm/sqlite-core";
 import { propertyRoles } from "../enums";
 import { user } from "./auth";
 import { timestamps } from "./helpers";
 
-export const properties = sqliteTable("properties", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
-  name: text("name").notNull(),
-  slug: text("slug").notNull().unique(), // generated from name
-  description: text("description"),
-  country: text("country").notNull().default("kenya"),
-  county: text("county").notNull(),
-  town: text("town").notNull(),
-  address: text("address"),
-  phone: text("phone"),
-  email: text("email"),
-  latitude: real("latitude"),
-  longitude: real("longitude"),
-  isActive: integer("is_active", { mode: "boolean" }).notNull().default(true),
-  ...timestamps(),
-});
+export const properties = sqliteTable(
+  "properties",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    name: text("name").notNull(),
+    slug: text("slug").notNull().unique(), // generated from name
+    description: text("description"),
+    country: text("country").notNull().default("kenya"),
+    county: text("county").notNull(),
+    town: text("town").notNull(),
+    address: text("address"),
+    phone: text("phone"),
+    email: text("email"),
+    latitude: real("latitude"),
+    longitude: real("longitude"),
+    isActive: integer("is_active", { mode: "boolean" }).notNull().default(true),
+    checkInTime: text("check_in_time").notNull(), // HH:mm, Africa/Nairobi
+    checkOutTime: text("check_out_time").notNull(),
+    depositPercent: integer("deposit_percent").notNull().default(30),
+    ...timestamps(),
+  },
+  (t) => [
+    check("properties_deposit_chk", sql`${t.depositPercent} BETWEEN 0 AND 100`),
+  ],
+);
 
 export const propertyStaff = sqliteTable(
   "property_staff",
