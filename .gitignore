@@ -1,9 +1,9 @@
 # dependencies (bun install)
-node_modules
+node_modules/
 
 # output
-out
-dist
+out/
+dist/
 *.tgz
 
 # code coverage
@@ -48,3 +48,16 @@ diff.txt
 
 # temp files
 *.tmp
+
+# Output
+.output/
+.vercel/
+.netlify/
+.wrangler/
+.svelte-kit/
+build/
+
+# Vite
+vite.config.js.timestamp-*
+vite.config.ts.timestamp-*
+

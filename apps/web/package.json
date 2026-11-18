@@ -1,0 +1,26 @@
+{
+  "name": "neoams-web",
+  "version": "0.0.1",
+  "type": "module",
+  "scripts": {
+    "dev": "vite dev",
+    "build": "vite build",
+    "preview": "vite preview",
+    "prepare": "svelte-kit sync || echo ''"
+  },
+  "devDependencies": {
+    "@sveltejs/adapter-node": "^6.0.4",
+    "@sveltejs/kit": "^3.3.1",
+    "@sveltejs/vite-plugin-svelte": "^7.3.1",
+    "@tailwindcss/forms": "^0.5.11",
+    "@tailwindcss/typography": "^0.5.20",
+    "@tailwindcss/vite": "^4.3.5",
+    "svelte": "^5.58.0",
+    "tailwindcss": "^4.3.5",
+    "typescript": "^5.0.0",
+    "vite": "^8.3.8"
+  },
+  "dependencies": {
+    "@neoams/shared": "workspace:*"
+  }
+}

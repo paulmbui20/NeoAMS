@@ -147,23 +147,23 @@ http://localhost:3000/reference
 
 ## API Overview
 
-| Route | Method | Description | Access |
-| :--- | :--- | :--- | :--- |
-| `/api/auth/*` | `GET`, `POST` | Better Auth endpoints (sign-in, sign-up, sign-out) | Public |
-| `/api/v1/me` | `GET` | Get authenticated user info & accessible properties | Authenticated |
-| `/api/v1/me/guest` | `GET`, `PUT` | View or update guest profile | Authenticated |
-| `/api/v1/me/bookings` | `GET` | View booking history for authenticated user | Authenticated |
-| `/api/v1/public/properties/:slug/availability` | `GET` | Check room availability & pricing for stay dates | Public |
-| `/api/v1/public/properties/:slug/bookings` | `POST` | Create online booking with provisional hold | Public / User |
-| `/api/v1/public/bookings/:reference` | `GET` | View booking summary (by reference + phone/session) | Public / Guest |
-| `/api/v1/public/bookings/:reference/proof` | `POST` | Submit payment confirmation / proof message | Public / Guest |
-| `/api/v1/public/bookings/:reference/cancel` | `POST` | Self-service cancellation | Public / Guest |
-| `/api/v1/properties/:propertyId/bookings` | `GET`, `POST` | List property bookings or create desk reservation | Staff (`booking:read` / `booking:write`) |
-| `/api/v1/properties/:propertyId/bookings/:id` | `GET` | Detailed booking view | Staff (`booking:read`) |
-| `/api/v1/properties/:propertyId/bookings/:id/:transition` | `POST` | Execute status transition (`confirm`, `checkIn`, `checkOut`, `noShow`, `cancel`) | Staff (`booking:transition`) |
-| `/api/v1/properties/:propertyId/guests` | `GET`, `POST` | Search guests or find/create guest record | Staff (`guest:read` / `guest:write`) |
-| `/api/v1/properties/:propertyId/payments` | `POST` | Record payment, deposit, or refund | Staff (`billing:record`) |
-| `/api/v1/properties/:propertyId/payments/:id/review` | `POST` | Verify or reject guest-submitted payment proof | Staff (`billing:review`) |
+| Route                                                     | Method        | Description                                                                      | Access                                   |
+| :-------------------------------------------------------- | :------------ | :------------------------------------------------------------------------------- | :--------------------------------------- |
+| `/api/auth/*`                                             | `GET`, `POST` | Better Auth endpoints (sign-in, sign-up, sign-out)                               | Public                                   |
+| `/api/v1/me`                                              | `GET`         | Get authenticated user info & accessible properties                              | Authenticated                            |
+| `/api/v1/me/guest`                                        | `GET`, `PUT`  | View or update guest profile                                                     | Authenticated                            |
+| `/api/v1/me/bookings`                                     | `GET`         | View booking history for authenticated user                                      | Authenticated                            |
+| `/api/v1/public/properties/:slug/availability`            | `GET`         | Check room availability & pricing for stay dates                                 | Public                                   |
+| `/api/v1/public/properties/:slug/bookings`                | `POST`        | Create online booking with provisional hold                                      | Public / User                            |
+| `/api/v1/public/bookings/:reference`                      | `GET`         | View booking summary (by reference + phone/session)                              | Public / Guest                           |
+| `/api/v1/public/bookings/:reference/proof`                | `POST`        | Submit payment confirmation / proof message                                      | Public / Guest                           |
+| `/api/v1/public/bookings/:reference/cancel`               | `POST`        | Self-service cancellation                                                        | Public / Guest                           |
+| `/api/v1/properties/:propertyId/bookings`                 | `GET`, `POST` | List property bookings or create desk reservation                                | Staff (`booking:read` / `booking:write`) |
+| `/api/v1/properties/:propertyId/bookings/:id`             | `GET`         | Detailed booking view                                                            | Staff (`booking:read`)                   |
+| `/api/v1/properties/:propertyId/bookings/:id/:transition` | `POST`        | Execute status transition (`confirm`, `checkIn`, `checkOut`, `noShow`, `cancel`) | Staff (`booking:transition`)             |
+| `/api/v1/properties/:propertyId/guests`                   | `GET`, `POST` | Search guests or find/create guest record                                        | Staff (`guest:read` / `guest:write`)     |
+| `/api/v1/properties/:propertyId/payments`                 | `POST`        | Record payment, deposit, or refund                                               | Staff (`billing:record`)                 |
+| `/api/v1/properties/:propertyId/payments/:id/review`      | `POST`        | Verify or reject guest-submitted payment proof                                   | Staff (`billing:review`)                 |
 
 ---
 

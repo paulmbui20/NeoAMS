@@ -1,0 +1,34 @@
+{
+  "name": "neoams-api",
+  "module": "src/server.ts",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "dev": "bun --watch src/server.ts",
+    "start": "bun src/server.ts",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:push": "drizzle-kit push",
+    "db:studio": "drizzle-kit studio"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.4.4",
+    "drizzle-kit": "^1.0.0-rc.5"
+  },
+  "peerDependencies": {
+    "typescript": "^7"
+  },
+  "dependencies": {
+    "@fastify/cors": "^11.4.3",
+    "@fastify/rate-limit": "^11.2.2",
+    "@fastify/swagger": "^9.9.5",
+    "@scalar/fastify-api-reference": "^1.79.0",
+    "better-auth": "^1.7.25",
+    "dotenv": "^18.0.10",
+    "drizzle-orm": "^1.0.0-rc.5",
+    "fastify": "^5.12.8",
+    "fastify-cli": "^8.0.3",
+    "superstruct": "^2.0.2",
+    "@neoams/shared": "workspace:*"
+  }
+}
