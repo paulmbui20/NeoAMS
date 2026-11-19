@@ -318,6 +318,7 @@ CREATE TABLE `session` (
 	`token` text NOT NULL UNIQUE,
 	`ip_address` text,
 	`user_agent` text,
+	`impersonated_by` text,
 	`user_id` text NOT NULL,
 	`created_at` integer DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)) NOT NULL,
 	`updated_at` integer DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)) NOT NULL,
@@ -332,6 +333,8 @@ CREATE TABLE `user` (
 	`image` text,
 	`role` text DEFAULT 'user' NOT NULL,
 	`banned` integer DEFAULT false NOT NULL,
+	`ban_reason` text,
+	`ban_expires` integer,
 	`must_change_password` integer DEFAULT false NOT NULL,
 	`created_at` integer DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)) NOT NULL,
 	`updated_at` integer DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)) NOT NULL

@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "bun --watch src/server.ts",
     "start": "bun src/server.ts",
+    "test": "bun test",
+    "check": "tsc --noEmit",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",
@@ -20,15 +22,16 @@
   },
   "dependencies": {
     "@fastify/cors": "^11.4.3",
+    "@fastify/multipart": "^10.1.9",
     "@fastify/rate-limit": "^11.2.2",
     "@fastify/swagger": "^9.9.5",
+    "@neoams/shared": "workspace:*",
     "@scalar/fastify-api-reference": "^1.79.0",
     "better-auth": "^1.7.25",
     "dotenv": "^18.0.10",
     "drizzle-orm": "^1.0.0-rc.5",
     "fastify": "^5.12.8",
     "fastify-cli": "^8.0.3",
-    "superstruct": "^2.0.2",
-    "@neoams/shared": "workspace:*"
+    "superstruct": "^2.0.2"
   }
 }

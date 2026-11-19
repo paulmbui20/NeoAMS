@@ -2,10 +2,15 @@
 import type { FastifyPluginAsync } from "fastify";
 import type { RouteDeps } from "../../http/types";
 import {
+  AddBookingGuest,
+  AddBookingService,
   BookingListQuery,
   CreateDeskBooking,
   DeskAvailabilityQuery,
+  GuestParam,
+  ServiceLineParams,
   StaffCancel,
+  UpdateBooking,
 } from "@neoams/shared";
 import { IdParams, parse, PropertyParams } from "@neoams/shared";
 
@@ -59,6 +64,63 @@ export const staffBookingRoutes =
       async (req) => {
         const { propertyId, id } = parse(IdParams, req.params);
         return booking.get(propertyId, id);
+      },
+    );
+
+    /** Edit party size, requests and deposit. The stay and room are immutable. */
+    app.patch(
+      "/bookings/:id",
+      { preHandler: can("booking:write") },
+      async (req) => {
+        const { propertyId, id } = parse(IdParams, req.params);
+        const patch = parse(UpdateBooking, req.body);
+        return booking.update(propertyId, id, patch, req.actor);
+      },
+    );
+
+    /** Add another guest to the party. */
+    app.post(
+      "/bookings/:id/guests",
+      { preHandler: can("booking:write") },
+      async (req, reply) => {
+        const { propertyId, id } = parse(IdParams, req.params);
+        const { guestId } = parse(AddBookingGuest, req.body);
+        return reply
+          .code(201)
+          .send(booking.addGuest(propertyId, id, guestId, req.actor));
+      },
+    );
+
+    /** Remove an additional guest from the party. */
+    app.delete(
+      "/bookings/:id/guests/:guestId",
+      { preHandler: can("booking:write") },
+      async (req) => {
+        const { propertyId, id, guestId } = parse(GuestParam, req.params);
+        return booking.removeGuest(propertyId, id, guestId, req.actor);
+      },
+    );
+
+    /** Add a billable service line. */
+    app.post(
+      "/bookings/:id/services",
+      { preHandler: can("booking:write") },
+      async (req, reply) => {
+        const { propertyId, id } = parse(IdParams, req.params);
+        const input = parse(AddBookingService, req.body);
+        return reply
+          .code(201)
+          .send(booking.addService(propertyId, id, input, req.actor));
+      },
+    );
+
+    /** Remove a service line. */
+    app.delete(
+      "/bookings/:id/services/:lineId",
+      { preHandler: can("booking:write") },
+      async (req) => {
+        const { propertyId, id, lineId } = parse(ServiceLineParams, req.params);
+        return booking.removeService(propertyId, id, lineId, req.actor);
       },
     );
 

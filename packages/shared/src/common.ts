@@ -49,8 +49,13 @@ export const PageQuery = s.type(pageShape);
 
 export const PropertyParams = s.type({ propertyId: Id });
 export const IdParams = s.type({ propertyId: Id, id: Id });
+export const StaffParams = s.type({ propertyId: Id, staffId: Id });
 export const PaymentParams = s.type({ propertyId: Id, paymentId: Id });
 export const OptionParams = s.type({ propertyId: Id, optionId: Id });
+export const SingleIdParams = s.type({ id: Id });
+export const GuestParam = s.type({ propertyId: Id, id: Id, guestId: Id });
+export const ServiceLineParams = s.type({ propertyId: Id, id: Id, lineId: Id });
+export const ImageParams = s.type({ propertyId: Id, id: Id, imageId: Id });
 export const SlugParams = s.type({
   slug: s.pattern(s.string(), /^[a-z0-9-]{1,100}$/),
 });

@@ -1,0 +1,83 @@
+# NeoAMS — production stack.
+#
+#   cp .env.example .env      # then edit it
+#   docker compose up -d
+#
+# The API and the web app are behind one Caddy, so they share an origin and
+# the session cookie works without any cross-site allowances.
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    restart: unless-stopped
+    environment:
+      DB_FILE_NAME: /data/neoams.sqlite
+      UPLOAD_DIR: /data/uploads
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?set BETTER_AUTH_SECRET in .env}
+      BETTER_AUTH_URL: ${PUBLIC_URL:?set PUBLIC_URL in .env}
+      FRONTEND_URL: ${PUBLIC_URL:?set PUBLIC_URL in .env}
+      PORT: "3000"
+      TRUST_PROXY: "true"
+      SETUP_TOKEN: ${SETUP_TOKEN:-}
+      RATE_LIMIT_ENABLED: ${RATE_LIMIT_ENABLED:-true}
+      RATE_LIMIT_SIGN_IN_MAX: ${RATE_LIMIT_SIGN_IN_MAX:-10}
+    volumes:
+      - neoams-data:/data
+    healthcheck:
+      test:
+        - CMD
+        - bun
+        - -e
+        - "fetch('http://127.0.0.1:3000/api/v1/setup/status').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    restart: unless-stopped
+    environment:
+      ORIGIN: ${PUBLIC_URL:?set PUBLIC_URL in .env}
+      PORT: "3000"
+      HOST: 0.0.0.0
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3000/').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+      web:
+        condition: service_healthy
+    environment:
+      DOMAIN: ${DOMAIN:-localhost}
+      ACME_EMAIL: ${ACME_EMAIL:-}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ${CADDYFILE:-./deploy/Caddyfile}:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+
+volumes:
+  # The SQLite database and the uploaded images.
+  neoams-data:
+  # The certificates Caddy obtains.
+  caddy-data:
+  caddy-config:

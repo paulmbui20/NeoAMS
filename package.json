@@ -4,5 +4,11 @@
   "workspaces": [
     "apps/*",
     "packages/*"
-  ]
+  ],
+  "scripts": {
+    "dev": "bun run --filter '*' dev",
+    "test": "bun run --filter 'neoams-api' test",
+    "check": "bun run --filter '*' check",
+    "fmt": "bun fmt"
+  }
 }

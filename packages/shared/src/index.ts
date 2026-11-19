@@ -6,3 +6,4 @@ export * from "./guest";
 export * from "./billing";
 export * from "./stay";
 export * from "./errors";
+export * from "./management";

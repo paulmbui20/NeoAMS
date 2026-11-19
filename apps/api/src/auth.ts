@@ -24,6 +24,37 @@ export const createAuth = (db: Db, env: Env) =>
         },
       },
     },
+    /**
+     * The sign-in rate limit.
+     *
+     * Better Auth's own default is 3 attempts per 10 seconds, which is
+     * enabled in production only. That is fine for one person at a desk,
+     * but a lodge's reception shares one address, and one person fumbling
+     * their password would lock the whole team out for ten seconds.
+     * Ten attempts a minute per address blunts a brute force just as well,
+     * without getting in the way of a busy morning.
+     *
+     * The limit is counted per client address. Behind Caddy the address
+     * comes from X-Forwarded-For, which Caddy sets itself and which
+     * overwrites anything the client sends.
+     */
+    rateLimit: {
+      enabled: env.RATE_LIMIT_ENABLED,
+      window: 60,
+      max: 100,
+      customRules: {
+        "/sign-in/email": { window: 60, max: env.RATE_LIMIT_SIGN_IN_MAX },
+        "/sign-up/email": { window: 60, max: 5 },
+        "/change-password": { window: 60, max: 10 },
+      },
+    },
+    advanced: {
+      ipAddress: {
+        // Caddy sets X-Forwarded-For. X-Real-IP is the fallback for
+        // installations behind nginx.
+        ipAddressHeaders: ["x-forwarded-for", "x-real-ip"],
+      },
+    },
     plugins: [admin()],
   });
 export type Auth = ReturnType<typeof createAuth>;

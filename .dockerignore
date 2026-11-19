@@ -1,0 +1,18 @@
+# Build context: only the sources are needed, never the local state.
+.git
+.gitignore
+node_modules
+**/node_modules
+**/.svelte-kit
+**/build
+**/dist
+**/.output
+backups
+*.sqlite
+*.sqlite-*
+*.db
+*.db-*
+uploads
+**/uploads
+diff.txt
+docs/images

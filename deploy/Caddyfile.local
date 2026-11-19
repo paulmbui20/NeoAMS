@@ -1,0 +1,36 @@
+# The local version of the Caddy configuration.
+#
+# It signs its own certificate, so it works without a domain name and
+# without touching Let's Encrypt. The browser will warn about the
+# certificate: that is expected for a local certificate.
+#
+#   CADDYFILE=./deploy/Caddyfile.local docker compose up -d
+#
+# Use it with DOMAIN=localhost in .env.
+
+{
+	local_certs
+}
+
+localhost {
+	encode zstd gzip
+
+	log {
+		output stdout
+		format console
+	}
+
+	handle /api/* {
+		reverse_proxy api:3000
+	}
+	handle /uploads/* {
+		reverse_proxy api:3000
+	}
+	handle /reference* {
+		reverse_proxy api:3000
+	}
+
+	handle {
+		reverse_proxy web:3000
+	}
+}

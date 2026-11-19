@@ -42,7 +42,11 @@ export const DeskGuest = s.refine(
     "idType and idNumber go together",
 );
 
-export const GuestSearchQuery = s.type({ q: text(2, 60), ...pageShape });
+/** The guest list: a search term is optional, so the list may be browsed. */
+export const GuestSearchQuery = s.type({
+  q: s.optional(text(1, 60)),
+  ...pageShape,
+});
 
 export type PublicGuestInput = s.Infer<typeof PublicGuest>;
 export type GuestProfileInput = s.Infer<typeof GuestProfile>;

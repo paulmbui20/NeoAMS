@@ -40,3 +40,24 @@ export class InvalidStateError extends AppError {
     super(422, code, message);
   }
 }
+
+/**
+ * Is this a "that row already exists" error?
+ * SQLite reports it as SQLITE_CONSTRAINT_UNIQUE, but Drizzle wraps the
+ * driver error, so the whole chain is checked.
+ */
+export function isUniqueViolation(err: unknown): boolean {
+  let current: unknown = err;
+  for (let depth = 0; depth < 5 && current; depth++) {
+    const e = current as { code?: string; message?: string; cause?: unknown };
+    if (e.code === "SQLITE_CONSTRAINT_UNIQUE") return true;
+    if (
+      typeof e.message === "string" &&
+      e.message.includes("UNIQUE constraint failed")
+    ) {
+      return true;
+    }
+    current = e.cause;
+  }
+  return false;
+}

@@ -13,6 +13,8 @@ export const user = sqliteTable("user", {
   // Global role only. Per-property roles live in property_staff.
   role: text("role", { enum: userRoles }).default("user").notNull(),
   banned: integer("banned", { mode: "boolean" }).default(false).notNull(),
+  banReason: text("ban_reason"),
+  banExpires: integer("ban_expires", { mode: "timestamp_ms" }),
   mustChangePassword: integer("must_change_password", { mode: "boolean" })
     .default(false)
     .notNull(),
@@ -27,6 +29,7 @@ export const session = sqliteTable(
     token: text("token").notNull().unique(),
     ipAddress: text("ip_address"),
     userAgent: text("user_agent"),
+    impersonatedBy: text("impersonated_by"),
     userId: text("user_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),

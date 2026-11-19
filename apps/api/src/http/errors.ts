@@ -8,9 +8,16 @@ export function errorHandler(
   req: FastifyRequest,
   reply: FastifyReply,
 ) {
+  // Every error carries the request id so a user can quote it and support can find the log.
+  const requestId = req.id;
   if (err instanceof AppError) {
     return reply.code(err.status).send({
-      error: { code: err.code, message: err.message, details: err.details },
+      error: {
+        code: err.code,
+        message: err.message,
+        details: err.details,
+        requestId,
+      },
     });
   }
   if (err instanceof StructError) {
@@ -21,13 +28,22 @@ export function errorHandler(
         details: err
           .failures()
           .map((f) => ({ path: f.path.join("."), message: f.message })),
+        requestId,
       },
     });
   }
-  const e = err as { statusCode?: number; code?: string; message?: string };
+  const e = err as {
+    statusCode?: number;
+    code?: string;
+    message?: string;
+  };
   if (e.code === "SQLITE_CONSTRAINT_UNIQUE") {
     return reply.code(409).send({
-      error: { code: "DUPLICATE", message: "That record already exists" },
+      error: {
+        code: "DUPLICATE",
+        message: "That record already exists",
+        requestId,
+      },
     });
   }
   if (e.statusCode && e.statusCode < 500) {
@@ -36,11 +52,16 @@ export function errorHandler(
       error: {
         code: e.code ?? "BAD_REQUEST",
         message: e.message ?? "Bad request",
+        requestId,
       },
     });
   }
   req.log.error(err); // never leak internals
-  return reply
-    .code(500)
-    .send({ error: { code: "INTERNAL", message: "Something went wrong" } });
+  return reply.code(500).send({
+    error: {
+      code: "INTERNAL",
+      message: "Something went wrong",
+      requestId,
+    },
+  });
 }

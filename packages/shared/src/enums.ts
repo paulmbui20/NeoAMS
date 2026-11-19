@@ -63,6 +63,7 @@ export const paymentOptionKinds = [
 ] as const;
 
 export type PropertyRole = (typeof propertyRoles)[number];
+export type UserRole = (typeof userRoles)[number];
 export type RoomStatus = (typeof roomStatuses)[number];
 export type BookingStatus = (typeof bookingStatuses)[number];
 export type BookingSource = (typeof bookingSources)[number];

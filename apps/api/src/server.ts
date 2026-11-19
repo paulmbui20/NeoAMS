@@ -1,9 +1,17 @@
 // src/server.ts
 import { buildApp } from "./app";
 import { createContainer } from "./container";
+import { createDb } from "./db";
+import { runMigrations } from "./db/migrate";
 import { env } from "./env";
 
-const container = createContainer(env);
+const db = createDb(env.DB_FILE_NAME);
+
+// The schema is brought up to date before anything is served, so a fresh
+// install works straight away.
+runMigrations(db);
+
+const container = createContainer(env, db);
 const app = buildApp(container);
 
 // Tidy expired holds. Availability already ignores them, so this is housekeeping, not correctness.

@@ -9,7 +9,8 @@ export const staffGuestRoutes =
   async (app) => {
     app.get("/guests", { preHandler: can("guest:read") }, async (req) => {
       const { q, ...page } = parse(GuestSearchQuery, req.query);
-      return guest.search(q, page);
+      // Without a term the whole list of the property is shown.
+      return guest.search(q ?? "", page);
     });
 
     // find-or-create: 200 if the guest already existed, 201 if new

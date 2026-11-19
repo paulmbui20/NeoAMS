@@ -7,6 +7,7 @@ import { parse, ReferenceParams } from "@neoams/shared";
 import { GuestProfile } from "@neoams/shared";
 import * as s from "superstruct";
 import { eq } from "drizzle-orm";
+import { fromNodeHeaders } from "better-auth/node";
 import { user } from "../db/schema/auth";
 
 export const meRoutes =
@@ -25,6 +26,7 @@ export const meRoutes =
       user: req.user,
       properties: access.propertiesFor(req.user.id),
       guest: guest.profileFor(req.user.id),
+      mustChangePassword: req.user.mustChangePassword ?? false,
     }));
 
     app.post("/me/password", authGuard, async (req, reply) => {
@@ -36,13 +38,37 @@ export const meRoutes =
         req.body,
       );
 
-      await auth.api.changePassword({
+      // Changing the password closes every session, the one making the
+      // request included, and opens a fresh one. The browser has to be
+      // given that new session, or it is left holding a cookie for a
+      // session that no longer exists.
+      const response = await auth.api.changePassword({
         body: {
           currentPassword,
           newPassword,
+          revokeOtherSessions: true,
         },
-        userId: req.user.id,
+        headers: fromNodeHeaders(req.headers),
+        asResponse: true,
       });
+
+      // With `asResponse` the refusal comes back as a response rather than
+      // as a thrown error, so it has to be read here.
+      if (!response.ok) {
+        const body = (await response.json().catch(() => null)) as {
+          code?: string;
+          message?: string;
+        } | null;
+        const failure = new Error(
+          body?.message ?? "The password could not be changed",
+        ) as Error & { statusCode?: number; code?: string };
+        failure.statusCode = response.status;
+        failure.code = body?.code ?? "PASSWORD_CHANGE_FAILED";
+        throw failure;
+      }
+
+      const cookies = response.headers.getSetCookie();
+      if (cookies.length > 0) reply.header("set-cookie", cookies);
 
       await db
         .update(user)

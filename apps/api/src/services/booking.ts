@@ -461,7 +461,11 @@ export const createBookingService = ({
           status: "confirmed",
           source: input.source,
           holdExpiresAt: null,
-          deposit: () => input.depositRequiredCents ?? 0,
+          // The property's deposit percentage is the default. Staff may
+          // override it for a particular booking.
+          deposit: (total) =>
+            input.depositRequiredCents ??
+            Math.ceil((total * property.depositPercent) / 100),
           specialRequests: input.specialRequests,
           createdBy: actor.userId,
         });
@@ -493,8 +497,19 @@ export const createBookingService = ({
       getDetail(db, propertyId, bookingId),
 
     list(propertyId: number, q: BookingListInput) {
-      const term = q.q?.replace(/[%_\\]/g, "");
-      const digits = term?.replace(/\D/g, "").replace(/^0/, "");
+      const term = q.q?.replace(/[%_\\]/g, "").trim();
+      /**
+       * The desk searches by reference, by name or by phone. Each of those
+       * is matched only when the term could be it, so that a reference like
+       * "BK-7Q2M1" does not also match every guest whose phone number
+       * happens to contain a 7, a 2 or a 1.
+       */
+      const looksLikePhone = term ? /^\+?\d[\d\s-]{5,}$/.test(term) : false;
+      const looksLikeName = term ? !/\d/.test(term) : false;
+      // The leading zero is dropped, so 0712… and 712… find the same guest.
+      const digits = looksLikePhone
+        ? term!.replace(/\D/g, "").replace(/^0/, "")
+        : "";
       const where = and(
         eq(rooms.propertyId, propertyId),
         q.status ? eq(bookings.status, q.status) : undefined,
@@ -504,8 +519,8 @@ export const createBookingService = ({
         term
           ? or(
               eq(bookings.bookingReferenceCode, normalizeCode(term)),
-              like(guests.firstName, `%${term}%`),
-              like(guests.lastName, `%${term}%`),
+              looksLikeName ? like(guests.firstName, `%${term}%`) : undefined,
+              looksLikeName ? like(guests.lastName, `%${term}%`) : undefined,
               digits ? like(guests.phone, `%${digits}%`) : undefined,
             )
           : undefined,
@@ -545,6 +560,262 @@ export const createBookingService = ({
         .offset(q.offset)
         .all();
       return paged(rows, total, q);
+    },
+
+    /**
+     * Edit the parts of a booking that may change after it is made:
+     * party size, special requests and the deposit requirement.
+     * The stay itself and the room are immutable; cancel and rebook instead.
+     */
+    update(
+      propertyId: number,
+      bookingId: number,
+      patch: {
+        adults?: number;
+        children?: number;
+        specialRequests?: string;
+        depositRequiredCents?: number;
+      },
+      actor: Actor,
+    ) {
+      return db.transaction((tx) => {
+        const { booking, room } = loadScoped(tx, propertyId, bookingId);
+        if (
+          booking.status === "checked_out" ||
+          booking.status === "cancelled"
+        ) {
+          throw new InvalidStateError(
+            "BOOKING_CLOSED",
+            "A closed booking cannot be edited",
+          );
+        }
+        const before = {
+          adults: booking.adults,
+          children: booking.children,
+          specialRequests: booking.specialRequests,
+          depositRequiredCents: booking.depositRequiredCents,
+        };
+        const next = { ...before, ...patch };
+        if (next.adults + next.children < 1) {
+          throw new ValidationError(
+            "A booking needs at least one person",
+            undefined,
+            "INVALID_PARTY",
+          );
+        }
+        if (next.depositRequiredCents > booking.totalCostCents) {
+          throw new ValidationError(
+            "The deposit cannot exceed the total",
+            undefined,
+            "INVALID_DEPOSIT",
+          );
+        }
+        // Capacity is checked against the room type, so a party cannot grow
+        // past what the room can hold.
+        const roomType = tx
+          .select()
+          .from(roomTypes)
+          .where(eq(roomTypes.id, room.roomTypeId))
+          .get();
+        if (roomType) {
+          assertCapacity(roomType, next.adults, next.children);
+        }
+        tx.update(bookings)
+          .set({
+            adults: next.adults,
+            children: next.children,
+            specialRequests: next.specialRequests,
+            depositRequiredCents: next.depositRequiredCents,
+            updatedAt: new Date(),
+          })
+          .where(eq(bookings.id, bookingId))
+          .run();
+        audit.log(tx, {
+          actor,
+          action: "booking.updated",
+          entity: "booking",
+          entityId: bookingId,
+          before,
+          after: next,
+        });
+        return getDetail(tx, propertyId, bookingId);
+      });
+    },
+
+    /** Attach another guest to the party. */
+    addGuest(
+      propertyId: number,
+      bookingId: number,
+      guestId: number,
+      actor: Actor,
+    ) {
+      return db.transaction((tx) => {
+        const { booking } = loadScoped(tx, propertyId, bookingId);
+        if (
+          booking.status === "checked_out" ||
+          booking.status === "cancelled"
+        ) {
+          throw new InvalidStateError(
+            "BOOKING_CLOSED",
+            "A closed booking cannot be changed",
+          );
+        }
+        const guest = tx
+          .select()
+          .from(guests)
+          .where(eq(guests.id, guestId))
+          .get();
+        if (!guest) throw new NotFoundError("Guest");
+        if (guest.id === booking.guestId) {
+          throw new ConflictError(
+            "ALREADY_PRIMARY_GUEST",
+            "That guest is already the lead guest on this booking",
+          );
+        }
+        const exists = tx
+          .select()
+          .from(additionalGuests)
+          .where(
+            and(
+              eq(additionalGuests.bookingId, bookingId),
+              eq(additionalGuests.guestId, guestId),
+            ),
+          )
+          .get();
+        if (exists) {
+          throw new ConflictError(
+            "ALREADY_ADDED",
+            "That guest is already on this booking",
+          );
+        }
+        tx.insert(additionalGuests).values({ bookingId, guestId }).run();
+        audit.log(tx, {
+          actor,
+          action: "booking.guest_added",
+          entity: "booking",
+          entityId: bookingId,
+          after: { guestId },
+        });
+        return getDetail(tx, propertyId, bookingId);
+      });
+    },
+
+    /** Detach an additional guest from the party. */
+    removeGuest(
+      propertyId: number,
+      bookingId: number,
+      guestId: number,
+      actor: Actor,
+    ) {
+      return db.transaction((tx) => {
+        loadScoped(tx, propertyId, bookingId);
+        const row = tx
+          .select()
+          .from(additionalGuests)
+          .where(
+            and(
+              eq(additionalGuests.bookingId, bookingId),
+              eq(additionalGuests.guestId, guestId),
+            ),
+          )
+          .get();
+        if (!row) throw new NotFoundError("Additional guest");
+        tx.delete(additionalGuests)
+          .where(eq(additionalGuests.id, row.id))
+          .run();
+        audit.log(tx, {
+          actor,
+          action: "booking.guest_removed",
+          entity: "booking",
+          entityId: bookingId,
+          before: { guestId },
+        });
+        return getDetail(tx, propertyId, bookingId);
+      });
+    },
+
+    /** Add a billable service line to a booking. */
+    addService(
+      propertyId: number,
+      bookingId: number,
+      input: { serviceId: number; quantity?: number; notes?: string },
+      actor: Actor,
+    ) {
+      return db.transaction((tx) => {
+        const { booking, room } = loadScoped(tx, propertyId, bookingId);
+        if (
+          booking.status === "checked_out" ||
+          booking.status === "cancelled"
+        ) {
+          throw new InvalidStateError(
+            "BOOKING_CLOSED",
+            "A closed booking cannot be changed",
+          );
+        }
+        const service = tx
+          .select()
+          .from(services)
+          .where(
+            and(
+              eq(services.id, input.serviceId),
+              eq(services.propertyId, propertyId),
+            ),
+          )
+          .get();
+        if (!service) throw new NotFoundError("Service");
+        const quantity = input.quantity ?? 1;
+        const subtotal = service.priceCents * quantity;
+        tx.insert(serviceBookings)
+          .values({
+            bookingId,
+            serviceId: service.id,
+            quantity,
+            unitPriceCents: service.priceCents,
+            subtotalCents: subtotal,
+            notes: input.notes ?? null,
+          })
+          .run();
+        audit.log(tx, {
+          actor,
+          action: "booking.service_added",
+          entity: "booking",
+          entityId: bookingId,
+          after: { serviceId: service.id, quantity, subtotal },
+        });
+        return getDetail(tx, propertyId, bookingId);
+      });
+    },
+
+    /** Remove a service line from a booking. */
+    removeService(
+      propertyId: number,
+      bookingId: number,
+      lineId: number,
+      actor: Actor,
+    ) {
+      return db.transaction((tx) => {
+        loadScoped(tx, propertyId, bookingId);
+        const row = tx
+          .select()
+          .from(serviceBookings)
+          .where(
+            and(
+              eq(serviceBookings.id, lineId),
+              eq(serviceBookings.bookingId, bookingId),
+            ),
+          )
+          .get();
+        if (!row) throw new NotFoundError("Service line");
+        tx.delete(serviceBookings).where(eq(serviceBookings.id, lineId)).run();
+        audit.log(tx, {
+          actor,
+          action: "booking.service_removed",
+          entity: "booking",
+          entityId: bookingId,
+          before: { lineId, subtotalCents: row.subtotalCents },
+        });
+        return getDetail(tx, propertyId, bookingId);
+      });
     },
 
     /** confirm | checkIn | checkOut | noShow | cancel */

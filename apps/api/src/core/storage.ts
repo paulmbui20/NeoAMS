@@ -1,6 +1,8 @@
-import { randomUUID } from "crypto";
-import { mkdir, writeFile } from "node:fs/promises";
+// src/core/storage.ts
+import { randomUUID } from "node:crypto";
+import { mkdir, readFile, unlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import type { DetectedImage } from "./uploads";
 
 export interface UploadedFile {
   filename: string;
@@ -9,34 +11,42 @@ export interface UploadedFile {
 }
 
 export interface StorageProvider {
-  save(file: Buffer, mimeType: string): Promise<UploadedFile>;
+  save(file: Buffer, image: DetectedImage): Promise<UploadedFile>;
   delete(filename: string): Promise<void>;
+  read(filename: string): Promise<Buffer>;
 }
 
+/**
+ * Files land on disk under random names, so a hostile filename can never
+ * escape the upload directory.
+ */
 export class LocalStorage implements StorageProvider {
   constructor(private uploadDir: string) {}
 
-  async save(file: Buffer, mimeType: string): Promise<UploadedFile> {
-    const filename = `${randomUUID()}`;
-    const ext =
-      mimeType === "image/jpeg"
-        ? ".jpg"
-        : mimeType === "image/png"
-          ? ".png"
-          : ".webp";
-    const fullFilename = `${filename}${ext}`;
-
+  private async ensureDir() {
     await mkdir(this.uploadDir, { recursive: true });
-    await writeFile(join(this.uploadDir, fullFilename), file);
+  }
 
+  async save(file: Buffer, image: DetectedImage): Promise<UploadedFile> {
+    await this.ensureDir();
+    const filename = `${randomUUID()}${image.ext}`;
+    await writeFile(join(this.uploadDir, filename), file);
     return {
-      filename: fullFilename,
-      url: `/uploads/${fullFilename}`,
-      mimeType,
+      filename,
+      url: `/uploads/${filename}`,
+      mimeType: image.mime,
     };
   }
 
   async delete(filename: string): Promise<void> {
-    // Use fs.unlink
+    try {
+      await unlink(join(this.uploadDir, filename));
+    } catch {
+      // Already gone. Deleting an image should never fail the request.
+    }
+  }
+
+  async read(filename: string): Promise<Buffer> {
+    return readFile(join(this.uploadDir, filename));
   }
 }
