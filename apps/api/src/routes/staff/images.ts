@@ -59,9 +59,10 @@ export const staffImageRoutes =
       async (req) => {
         const { propertyId, id } = parse(IdParams, req.params);
         const result = catalog.deletePropertyImage(propertyId, id);
-        // The file itself goes too, so the disk does not fill with orphans.
-        const filename = result.imageUrl.replace("/uploads/", "");
-        await storage.delete(filename);
+        if (!catalog.isImageReferenced(result.imageUrl)) {
+          const filename = result.imageUrl.replace("/uploads/", "");
+          await storage.delete(filename);
+        }
         return result;
       },
     );
@@ -107,8 +108,10 @@ export const staffImageRoutes =
         const { propertyId, id, imageId } = parse(ImageParams, req.params);
         catalog.getRoomType(propertyId, id);
         const result = catalog.deleteRoomTypeImage(id, imageId);
-        const filename = result.imageUrl.replace("/uploads/", "");
-        await storage.delete(filename);
+        if (!catalog.isImageReferenced(result.imageUrl)) {
+          const filename = result.imageUrl.replace("/uploads/", "");
+          await storage.delete(filename);
+        }
         return result;
       },
     );

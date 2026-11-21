@@ -5,6 +5,7 @@ import { ConflictError, NotFoundError } from "../core/errors";
 import type { Db } from "../db";
 import {
   amenities,
+  bookings,
   propertyAmenities,
   propertyImages,
   roomTypeAmenities,
@@ -107,6 +108,29 @@ export const createCatalogService = ({ db }: { db: Db }) => {
     getRoomType(propertyId, id);
     db.update(roomTypes).set(patch).where(eq(roomTypes.id, id)).run();
     return getRoomType(propertyId, id);
+  };
+
+  const deleteRoomType = (propertyId: number, id: number) => {
+    const roomType = getRoomType(propertyId, id);
+    const roomCount = db
+      .select({ count: sql<number>`count(*)` })
+      .from(rooms)
+      .where(eq(rooms.roomTypeId, id))
+      .get()!.count;
+    if (roomCount > 0) {
+      throw new ConflictError(
+        "ROOM_TYPE_IN_USE",
+        "Move or remove this room type's rooms before deleting it",
+      );
+    }
+    const imageUrls = db
+      .select({ imageUrl: roomTypeImages.imageUrl })
+      .from(roomTypeImages)
+      .where(eq(roomTypeImages.roomTypeId, id))
+      .all()
+      .map((image) => image.imageUrl);
+    db.delete(roomTypes).where(eq(roomTypes.id, id)).run();
+    return { deleted: true, roomType, imageUrls };
   };
 
   /** Replace the amenity set of a room type with exactly the ids given. */
@@ -229,6 +253,23 @@ export const createCatalogService = ({ db }: { db: Db }) => {
     return getRoom(propertyId, id);
   };
 
+  const deleteRoom = (propertyId: number, id: number) => {
+    const room = getRoom(propertyId, id);
+    const bookingCount = db
+      .select({ count: sql<number>`count(*)` })
+      .from(bookings)
+      .where(eq(bookings.roomId, id))
+      .get()!.count;
+    if (bookingCount > 0) {
+      throw new ConflictError(
+        "ROOM_HAS_BOOKINGS",
+        "This room has booking history and cannot be deleted",
+      );
+    }
+    db.delete(rooms).where(eq(rooms.id, id)).run();
+    return { deleted: true, room };
+  };
+
   const setRoomStatus = (
     propertyId: number,
     id: number,
@@ -257,6 +298,60 @@ export const createCatalogService = ({ db }: { db: Db }) => {
       throw new ConflictError("AMENITY_EXISTS", "That amenity already exists");
     }
     return db.insert(amenities).values(input).returning().get();
+  };
+
+  const getAmenity = (id: number) => {
+    const row = db.select().from(amenities).where(eq(amenities.id, id)).get();
+    if (!row) throw new NotFoundError("Amenity");
+    return row;
+  };
+
+  const updateAmenity = (
+    id: number,
+    patch: { name?: string; icon?: string | null },
+  ) => {
+    if (Object.keys(patch).length === 0)
+      throw new ConflictError("EMPTY_UPDATE", "Nothing to update");
+    getAmenity(id);
+    if (patch.name) {
+      const duplicate = db
+        .select({ id: amenities.id })
+        .from(amenities)
+        .where(
+          and(eq(amenities.name, patch.name), sql`${amenities.id} <> ${id}`),
+        )
+        .get();
+      if (duplicate) {
+        throw new ConflictError(
+          "AMENITY_EXISTS",
+          "That amenity already exists",
+        );
+      }
+    }
+    db.update(amenities).set(patch).where(eq(amenities.id, id)).run();
+    return getAmenity(id);
+  };
+
+  const deleteAmenity = (id: number) => {
+    const amenity = getAmenity(id);
+    const propertyUseCount = db
+      .select({ count: sql<number>`count(*)` })
+      .from(propertyAmenities)
+      .where(eq(propertyAmenities.amenityId, id))
+      .get()!.count;
+    const roomTypeUseCount = db
+      .select({ count: sql<number>`count(*)` })
+      .from(roomTypeAmenities)
+      .where(eq(roomTypeAmenities.amenityId, id))
+      .get()!.count;
+    if (propertyUseCount + roomTypeUseCount > 0) {
+      throw new ConflictError(
+        "AMENITY_IN_USE",
+        "Remove this amenity from properties and room types before deleting it",
+      );
+    }
+    db.delete(amenities).where(eq(amenities.id, id)).run();
+    return { deleted: true, amenity };
   };
 
   const propertyAmenityIds = (propertyId: number) =>
@@ -347,6 +442,9 @@ export const createCatalogService = ({ db }: { db: Db }) => {
     db.update(services).set(patch).where(eq(services.id, id)).run();
     return getService(propertyId, id);
   };
+
+  const archiveService = (propertyId: number, id: number) =>
+    updateService(propertyId, id, { isActive: false });
 
   /* --------------------------------------------------------------- images */
 
@@ -515,26 +613,46 @@ export const createCatalogService = ({ db }: { db: Db }) => {
     return { deleted: true, imageUrl: row.imageUrl };
   };
 
+  const isImageReferenced = (imageUrl: string) =>
+    Boolean(
+      db
+        .select({ id: propertyImages.id })
+        .from(propertyImages)
+        .where(eq(propertyImages.imageUrl, imageUrl))
+        .get() ??
+      db
+        .select({ id: roomTypeImages.id })
+        .from(roomTypeImages)
+        .where(eq(roomTypeImages.imageUrl, imageUrl))
+        .get(),
+    );
+
   return {
     listRoomTypes,
     getRoomType,
     createRoomType,
     updateRoomType,
+    deleteRoomType,
     setRoomTypeAmenities,
     roomTypeAmenityIds,
     listRooms,
     getRoom,
     createRoom,
     updateRoom,
+    deleteRoom,
     setRoomStatus,
     listAmenities,
     createAmenity,
+    getAmenity,
+    updateAmenity,
+    deleteAmenity,
     propertyAmenityIds,
     setPropertyAmenities,
     listServices,
     getService,
     createService,
     updateService,
+    archiveService,
     listPropertyImages,
     addPropertyImage,
     updatePropertyImage,
@@ -543,6 +661,7 @@ export const createCatalogService = ({ db }: { db: Db }) => {
     addRoomTypeImage,
     updateRoomTypeImage,
     deleteRoomTypeImage,
+    isImageReferenced,
   };
 };
 

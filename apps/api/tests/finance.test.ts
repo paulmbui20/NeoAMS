@@ -9,6 +9,7 @@ import {
   signIn,
   type TestCtx,
 } from "./helpers";
+import { eq } from "drizzle-orm";
 import { bookings, guests, payments } from "../src/db/schema";
 
 describe("finance", () => {
@@ -65,6 +66,74 @@ describe("finance", () => {
     });
     expect(res.statusCode).toBe(200);
     expect(res.json().data.length).toBe(1);
+  });
+
+  it("updates an expense category", async () => {
+    const res = await ctx.app.inject({
+      method: "PATCH",
+      url: `/api/v1/properties/${propertyId}/expense-categories/1`,
+      headers: { cookie, "content-type": "application/json" },
+      payload: { description: "Updated category details" },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().description).toBe("Updated category details");
+    const cleared = await ctx.app.inject({
+      method: "PATCH",
+      url: `/api/v1/properties/${propertyId}/expense-categories/1`,
+      headers: { cookie, "content-type": "application/json" },
+      payload: { description: null },
+    });
+    expect(cleared.statusCode).toBe(200);
+    expect(cleared.json().description).toBeNull();
+  });
+
+  it("creates, updates, lists and archives payment options", async () => {
+    const created = await ctx.app.inject({
+      method: "POST",
+      url: `/api/v1/properties/${propertyId}/payment-options`,
+      headers: { cookie, "content-type": "application/json" },
+      payload: {
+        kind: "mpesa_till",
+        label: "Main Till",
+        accountNumber: "123456",
+        sortOrder: 1,
+      },
+    });
+    expect(created.statusCode).toBe(201);
+    const optionId = created.json().id;
+
+    const listed = await ctx.app.inject({
+      method: "GET",
+      url: `/api/v1/properties/${propertyId}/payment-options`,
+      headers: { cookie },
+    });
+    expect(listed.statusCode).toBe(200);
+    expect(listed.json().data[0].label).toBe("Main Till");
+
+    const updated = await ctx.app.inject({
+      method: "PATCH",
+      url: `/api/v1/properties/${propertyId}/payment-options/${optionId}`,
+      headers: { cookie, "content-type": "application/json" },
+      payload: { label: "Updated Till" },
+    });
+    expect(updated.statusCode).toBe(200);
+    expect(updated.json().label).toBe("Updated Till");
+    const clearedAccount = await ctx.app.inject({
+      method: "PATCH",
+      url: `/api/v1/properties/${propertyId}/payment-options/${optionId}`,
+      headers: { cookie, "content-type": "application/json" },
+      payload: { accountNumber: null },
+    });
+    expect(clearedAccount.statusCode).toBe(200);
+    expect(clearedAccount.json().accountNumber).toBeNull();
+
+    const archived = await ctx.app.inject({
+      method: "DELETE",
+      url: `/api/v1/properties/${propertyId}/payment-options/${optionId}`,
+      headers: { cookie },
+    });
+    expect(archived.statusCode).toBe(200);
+    expect(archived.json().isActive).toBe(false);
   });
 
   /* -------------------------------------------------------------- expenses */
@@ -309,6 +378,84 @@ describe("finance", () => {
     expect(res.json().data[0].period).toBe("2027-01");
   });
 
+  it("nets deposits and refunds in collected cash and applies the date filter", async () => {
+    const booking = ctx.db
+      .select()
+      .from(bookings)
+      .where(eq(bookings.bookingReferenceCode, "FIN-0001"))
+      .get()!;
+    const originalPayment = ctx.db
+      .select()
+      .from(payments)
+      .where(eq(payments.transactionReferenceCode, "MPESA-FIN1"))
+      .get()!;
+
+    ctx.db
+      .insert(payments)
+      .values({
+        bookingId: booking.id,
+        type: "deposit",
+        amountCents: 30_000,
+        paymentMethod: "mpesa",
+        status: "succeeded",
+        transactionReferenceCode: "MPESA-FIN-DEPOSIT",
+        paymentDate: new Date("2027-01-19T08:00:00.000Z"),
+      })
+      .run();
+    ctx.db
+      .insert(payments)
+      .values({
+        bookingId: booking.id,
+        type: "refund",
+        amountCents: 20_000,
+        paymentMethod: "mpesa",
+        status: "succeeded",
+        transactionReferenceCode: "MPESA-FIN-REFUND",
+        refundOfPaymentId: originalPayment.id,
+        reason: "Test partial refund",
+        paymentDate: new Date("2027-01-21T08:00:00.000Z"),
+      })
+      .run();
+    ctx.db
+      .insert(payments)
+      .values({
+        bookingId: booking.id,
+        type: "payment",
+        amountCents: 900_000,
+        paymentMethod: "mpesa",
+        status: "pending",
+        transactionReferenceCode: "MPESA-FIN-PENDING",
+        paymentDate: new Date("2027-01-20T08:00:00.000Z"),
+      })
+      .run();
+
+    const listedPayments = await ctx.app.inject({
+      method: "GET",
+      url: `/api/v1/properties/${propertyId}/payments`,
+      headers: { cookie },
+    });
+    const listedOriginal = listedPayments
+      .json()
+      .data.find((row: { id: number }) => row.id === originalPayment.id);
+    expect(listedOriginal.refundedCents).toBe(20_000);
+
+    const allTime = await ctx.app.inject({
+      method: "GET",
+      url: `/api/v1/properties/${propertyId}/reports/summary`,
+      headers: { cookie },
+    });
+    expect(allTime.statusCode).toBe(200);
+    expect(allTime.json().collectedCents).toBe(130_000);
+
+    const throughJanuary20 = await ctx.app.inject({
+      method: "GET",
+      url: `/api/v1/properties/${propertyId}/reports/summary?from=2027-01-19&to=2027-01-20`,
+      headers: { cookie },
+    });
+    expect(throughJanuary20.statusCode).toBe(200);
+    expect(throughJanuary20.json().collectedCents).toBe(150_000);
+  });
+
   it("excludes stays outside the window", async () => {
     const res = await ctx.app.inject({
       method: "GET",
@@ -327,5 +474,30 @@ describe("finance", () => {
       headers: { cookie },
     });
     expect(res.statusCode).toBe(400);
+  });
+
+  it("blocks category deletion when expenses still reference it", async () => {
+    const blocked = await ctx.app.inject({
+      method: "DELETE",
+      url: `/api/v1/properties/${propertyId}/expense-categories/1`,
+      headers: { cookie },
+    });
+    expect(blocked.statusCode).toBe(409);
+    expect(blocked.json().error.code).toBe("CATEGORY_IN_USE");
+
+    const unused = await ctx.app.inject({
+      method: "POST",
+      url: `/api/v1/properties/${propertyId}/expense-categories`,
+      headers: { cookie, "content-type": "application/json" },
+      payload: { name: "Unused category" },
+    });
+    expect(unused.statusCode).toBe(201);
+    const deleted = await ctx.app.inject({
+      method: "DELETE",
+      url: `/api/v1/properties/${propertyId}/expense-categories/${unused.json().id}`,
+      headers: { cookie },
+    });
+    expect(deleted.statusCode).toBe(200);
+    expect(deleted.json().deleted).toBe(true);
   });
 });

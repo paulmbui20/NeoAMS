@@ -340,9 +340,9 @@
     try {
       await api.patch(`/properties/${propertyId}/rooms/${editingRoom.id}`, {
         roomNumber: editRoomForm.roomNumber.trim(),
-        floor: editRoomForm.floor.trim() || undefined,
+        floor: editRoomForm.floor.trim() || null,
         roomTypeId,
-        description: editRoomForm.description.trim() || undefined,
+        description: editRoomForm.description.trim() || null,
         isActive: editRoomForm.isActive,
       });
 
@@ -356,6 +356,22 @@
       );
     } finally {
       editRoomBusy = false;
+    }
+  }
+
+  async function deleteRoom(room: Room) {
+    const propertyId = workspace.currentId;
+    if (propertyId === null) return;
+    if (!window.confirm(`Delete room ${room.roomNumber}?`)) return;
+    try {
+      await api.delete(`/properties/${propertyId}/rooms/${room.id}`);
+      toast.success(`Room ${room.roomNumber} deleted`);
+      await load();
+    } catch (err) {
+      toast.error(
+        "Could not delete room",
+        err instanceof ApiError ? err.message : "Please try again.",
+      );
     }
   }
 
@@ -437,12 +453,20 @@
     try {
       const payload = {
         name: roomTypeForm.name.trim(),
-        description: roomTypeForm.description.trim() || undefined,
+        description:
+          roomTypeForm.description.trim() ||
+          (editingRoomType ? null : undefined),
         pricePerNightCents,
         pricePerHourCents:
-          pricePerHourCents > 0 ? pricePerHourCents : undefined,
+          pricePerHourCents > 0
+            ? pricePerHourCents
+            : editingRoomType
+              ? null
+              : undefined,
         maxOccupancy,
-        bedConfiguration: roomTypeForm.bedConfiguration.trim() || undefined,
+        bedConfiguration:
+          roomTypeForm.bedConfiguration.trim() ||
+          (editingRoomType ? null : undefined),
         isActive: roomTypeForm.isActive,
       };
 
@@ -465,6 +489,22 @@
       );
     } finally {
       roomTypeBusy = false;
+    }
+  }
+
+  async function deleteRoomType(type: RoomType) {
+    const propertyId = workspace.currentId;
+    if (propertyId === null) return;
+    if (!window.confirm(`Delete room type "${type.name}"?`)) return;
+    try {
+      await api.delete(`/properties/${propertyId}/room-types/${type.id}`);
+      toast.success("Room type deleted", type.name);
+      await load();
+    } catch (err) {
+      toast.error(
+        "Could not delete room type",
+        err instanceof ApiError ? err.message : "Please try again.",
+      );
     }
   }
 
@@ -556,6 +596,15 @@
                     title="Edit room"
                   >
                     <Pencil class="size-3" />
+                  </button>
+                  <button
+                    type="button"
+                    class="p-1 rounded text-ink-muted hover:text-error hover:bg-surface-muted cursor-pointer"
+                    onclick={() => deleteRoom(room)}
+                    title="Delete room"
+                    aria-label={`Delete room ${room.roomNumber}`}
+                  >
+                    <Trash2 class="size-3" />
                   </button>
                 </div>
                 <p class="mt-0.5 truncate text-xs text-ink-muted">
@@ -675,6 +724,15 @@
                       title="Edit room category"
                     >
                       <Pencil class="size-3.5" />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onclick={() => deleteRoomType(type)}
+                      title="Delete room type"
+                      aria-label={`Delete room type ${type.name}`}
+                    >
+                      <Trash2 class="size-3.5 text-error" />
                     </Button>
                   </td>
                 </tr>

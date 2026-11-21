@@ -95,8 +95,28 @@ export const createBillingService = ({
     };
   };
 
+  const assertPaymentFitsBalance = (
+    c: Conn,
+    bookingId: number,
+    amountCents: number,
+  ) => {
+    const remainingCents = Math.max(0, balance(c, bookingId).balanceCents);
+    if (amountCents > remainingCents) {
+      throw new ConflictError(
+        "PAYMENT_EXCEEDS_BALANCE",
+        `Only KES ${(remainingCents / 100).toFixed(2)} remains due`,
+      );
+    }
+  };
+
   /** tx-first. Inserts one ledger row. Codes are normalised and may not be reused while live. */
   const record = (c: Conn, i: RecordInput) => {
+    if (
+      i.status === "succeeded" &&
+      (i.type === "deposit" || i.type === "payment")
+    ) {
+      assertPaymentFitsBalance(c, i.bookingId, i.amountCents);
+    }
     const ref = i.transactionReferenceCode
       ? normalizeCode(i.transactionReferenceCode)
       : null;
@@ -156,6 +176,27 @@ export const createBillingService = ({
 
     /** tx-first. Atomic pending → succeeded/failed. Staff may correct the amount after checking the statement. */
     review(c: Conn, paymentId: number, input: ReviewPaymentInput) {
+      const pending = c
+        .select()
+        .from(payments)
+        .where(and(eq(payments.id, paymentId), eq(payments.status, "pending")))
+        .get();
+      if (!pending) {
+        throw new InvalidStateError(
+          "PAYMENT_NOT_PENDING",
+          "Only pending payments can be reviewed",
+        );
+      }
+      if (
+        input.decision === "succeeded" &&
+        (pending.type === "deposit" || pending.type === "payment")
+      ) {
+        assertPaymentFitsBalance(
+          c,
+          pending.bookingId,
+          input.amountCents ?? pending.amountCents,
+        );
+      }
       const row = c
         .update(payments)
         .set({
@@ -255,6 +296,13 @@ export const createBillingService = ({
           type: payments.type,
           status: payments.status,
           amountCents: payments.amountCents,
+          refundOfPaymentId: payments.refundOfPaymentId,
+          refundedCents: sql<number>`coalesce((
+            select sum(refund.amount_cents)
+            from payments as refund
+            where refund.refund_of_payment_id = ${payments.id}
+              and refund.status = 'succeeded'
+          ), 0)`,
           paymentMethod: payments.paymentMethod,
           transactionReferenceCode: payments.transactionReferenceCode,
           proofMessage: payments.proofMessage,

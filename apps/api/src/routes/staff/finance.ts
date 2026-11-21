@@ -8,6 +8,7 @@ import {
   ExpenseQuery,
   ReportQuery,
   RevenueQuery,
+  UpdateExpenseCategory,
   UpdateExpense,
   parse,
 } from "@neoams/shared";
@@ -60,6 +61,25 @@ export const staffFinanceRoutes =
       async (req, reply) => {
         const input = parse(CreateExpenseCategory, req.body);
         return reply.code(201).send(finance.createCategory(input));
+      },
+    );
+
+    app.patch(
+      "/expense-categories/:id",
+      { preHandler: can("expense:manage") },
+      async (req) => {
+        const { id } = parse(IdParams, req.params);
+        const patch = parse(UpdateExpenseCategory, req.body);
+        return finance.updateCategory(id, patch);
+      },
+    );
+
+    app.delete(
+      "/expense-categories/:id",
+      { preHandler: can("expense:manage") },
+      async (req) => {
+        const { id } = parse(IdParams, req.params);
+        return finance.deleteCategory(id);
       },
     );
 

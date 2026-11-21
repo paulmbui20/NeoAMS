@@ -10,7 +10,7 @@ import {
   signIn,
   type TestCtx,
 } from "./helpers";
-import { rooms } from "../src/db/schema";
+import { payments, rooms } from "../src/db/schema";
 import { eq } from "drizzle-orm";
 
 describe("desk bookings", () => {
@@ -300,6 +300,167 @@ describe("desk bookings", () => {
     expect(res.json().payments.length).toBe(1);
     expect(res.json().balance.netPaidCents).toBe(200_000);
     expect(res.json().balance.balanceCents).toBe(0);
+  });
+
+  it("rejects an initial payment above the booking total", async () => {
+    const guestId = await newGuest("Ivy", "Ives", "+254700000109");
+    const res = await ctx.app.inject({
+      method: "POST",
+      url: `/api/v1/properties/${propertyId}/bookings`,
+      headers: { cookie, "content-type": "application/json" },
+      payload: {
+        roomId: 1,
+        guestId,
+        stay: {
+          type: "nightly",
+          checkInDate: "2030-02-01",
+          checkOutDate: "2030-02-03",
+        },
+        adults: 1,
+        children: 0,
+        initialPayment: {
+          type: "payment",
+          amountCents: 200_001,
+          paymentMethod: "cash",
+        },
+      },
+    });
+    expect(res.statusCode).toBe(409);
+    expect(res.json().error.code).toBe("PAYMENT_EXCEEDS_BALANCE");
+  });
+
+  it("rejects a desk payment above the remaining booking balance", async () => {
+    const guestId = await newGuest("Jules", "Jones", "+254700000110");
+    const booking = await newBooking(guestId, "2030-03-01", "2030-03-03");
+    const res = await ctx.app.inject({
+      method: "POST",
+      url: `/api/v1/properties/${propertyId}/bookings/${booking.booking.id}/payments`,
+      headers: { cookie, "content-type": "application/json" },
+      payload: {
+        type: "payment",
+        amountCents: booking.booking.totalCostCents + 1,
+        paymentMethod: "cash",
+      },
+    });
+    expect(res.statusCode).toBe(409);
+    expect(res.json().error.code).toBe("PAYMENT_EXCEEDS_BALANCE");
+  });
+
+  it("reserves the remaining balance across pending guest proofs", async () => {
+    const guestId = await newGuest("Kai", "King", "+254700000111");
+    const booking = await newBooking(guestId, "2030-04-01", "2030-04-03");
+    const submit = (amountCents: number, ref: string) =>
+      ctx.app.inject({
+        method: "POST",
+        url: `/api/v1/public/bookings/${booking.booking.bookingReferenceCode}/payments`,
+        headers: { "content-type": "application/json" },
+        payload: {
+          phone: "+254700000111",
+          amountCents,
+          paymentMethod: "mpesa",
+          transactionReferenceCode: ref,
+        },
+      });
+
+    expect((await submit(150_000, "PROOF-KAI1")).statusCode).toBe(201);
+    const excess = await submit(50_001, "PROOF-KAI2");
+    expect(excess.statusCode).toBe(409);
+    expect(excess.json().error.code).toBe("PAYMENT_EXCEEDS_BALANCE");
+  });
+
+  it("rejects approval of a pending proof if it would overpay the booking", async () => {
+    const guestId = await newGuest("Lee", "Lo", "+254700000112");
+    const booking = await newBooking(guestId, "2030-05-01", "2030-05-03");
+    await ctx.app.inject({
+      method: "POST",
+      url: `/api/v1/public/bookings/${booking.booking.bookingReferenceCode}/payments`,
+      headers: { "content-type": "application/json" },
+      payload: {
+        phone: "+254700000112",
+        amountCents: 100_000,
+        paymentMethod: "mpesa",
+        transactionReferenceCode: "PROOF-LEE1",
+      },
+    });
+    const pending = ctx.db
+      .select()
+      .from(payments)
+      .where(eq(payments.bookingId, booking.booking.id))
+      .get()!;
+    await ctx.app.inject({
+      method: "POST",
+      url: `/api/v1/properties/${propertyId}/bookings/${booking.booking.id}/payments`,
+      headers: { cookie, "content-type": "application/json" },
+      payload: {
+        type: "payment",
+        amountCents: 150_000,
+        paymentMethod: "cash",
+      },
+    });
+    const review = await ctx.app.inject({
+      method: "POST",
+      url: `/api/v1/properties/${propertyId}/payments/${pending.id}/review`,
+      headers: { cookie, "content-type": "application/json" },
+      payload: { decision: "succeeded" },
+    });
+    expect(review.statusCode).toBe(409);
+    expect(review.json().error.code).toBe("PAYMENT_EXCEEDS_BALANCE");
+  });
+
+  it("limits cumulative refunds to the original successful payment", async () => {
+    const guestId = await newGuest("Mia", "Mills", "+254700000113");
+    const booking = await ctx.app.inject({
+      method: "POST",
+      url: `/api/v1/properties/${propertyId}/bookings`,
+      headers: { cookie, "content-type": "application/json" },
+      payload: {
+        roomId: 1,
+        guestId,
+        stay: {
+          type: "nightly",
+          checkInDate: "2030-06-01",
+          checkOutDate: "2030-06-03",
+        },
+        adults: 1,
+        children: 0,
+        initialPayment: {
+          type: "payment",
+          amountCents: 200_000,
+          paymentMethod: "cash",
+        },
+      },
+    });
+    const paymentId = booking.json().payments[0].id as number;
+    const refund = (amountCents: number, ref: string) =>
+      ctx.app.inject({
+        method: "POST",
+        url: `/api/v1/properties/${propertyId}/payments/${paymentId}/refund`,
+        headers: { cookie, "content-type": "application/json" },
+        payload: {
+          amountCents,
+          paymentMethod: "cash",
+          reason: "Test refund",
+          transactionReferenceCode: ref,
+        },
+      });
+
+    const partial = await refund(150_000, "REFUND-MIA1");
+    expect(partial.statusCode).toBe(201);
+    const refundOfRefund = await ctx.app.inject({
+      method: "POST",
+      url: `/api/v1/properties/${propertyId}/payments/${partial.json().refund.id}/refund`,
+      headers: { cookie, "content-type": "application/json" },
+      payload: {
+        amountCents: 1,
+        paymentMethod: "cash",
+        reason: "Refunds cannot be refunded",
+      },
+    });
+    expect(refundOfRefund.statusCode).toBe(422);
+    expect(refundOfRefund.json().error.code).toBe("NOT_REFUNDABLE");
+    const excess = await refund(50_001, "REFUND-MIA2");
+    expect(excess.statusCode).toBe(409);
+    expect(excess.json().error.code).toBe("REFUND_EXCEEDS_PAYMENT");
   });
 
   /* ------------------------------------------------------------- reading */

@@ -72,7 +72,17 @@ export const CreatePaymentOption = s.object({
   sortOrder: s.defaulted(option.sortOrder, 0),
   isActive: s.defaulted(option.isActive, true),
 });
-export const UpdatePaymentOption = s.partial(s.object(option)); // no defaults, so a PATCH never overwrites
+export const UpdatePaymentOption = s.partial(
+  s.object({
+    kind: option.kind,
+    label: option.label,
+    accountNumber: s.nullable(option.accountNumber),
+    accountName: s.nullable(option.accountName),
+    instructions: s.nullable(option.instructions),
+    sortOrder: option.sortOrder,
+    isActive: option.isActive,
+  }),
+); // no defaults, so a PATCH never overwrites
 
 export type RecordPaymentInput = s.Infer<typeof RecordPayment>;
 export type ReviewPaymentInput = s.Infer<typeof ReviewPayment>;

@@ -14,6 +14,7 @@
     Users,
     BedDouble,
     DollarSign,
+    Package,
     BadgeCheck,
     Settings,
     ScrollText,
@@ -49,6 +50,12 @@
       label: "Rooms",
       icon: BedDouble,
       requires: "booking:read",
+    },
+    {
+      href: "/catalog",
+      label: "Catalog",
+      icon: Package,
+      requires: "catalog:manage",
     },
     {
       href: "/finance",

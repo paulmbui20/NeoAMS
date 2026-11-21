@@ -83,7 +83,14 @@ export async function request<T = unknown>(
   const { method = "GET", body, query, signal, raw } = options;
 
   const headers: Record<string, string> = { Accept: "application/json" };
-  if (body !== undefined) headers["Content-Type"] = "application/json";
+  const formBody =
+    typeof FormData !== "undefined" && body instanceof FormData
+      ? body
+      : undefined;
+  if (body !== undefined && formBody === undefined)
+    headers["Content-Type"] = "application/json";
+  const requestBody: BodyInit | undefined =
+    formBody ?? (body === undefined ? undefined : JSON.stringify(body));
 
   let response: Response;
   try {
@@ -91,7 +98,7 @@ export async function request<T = unknown>(
       method,
       headers,
       credentials: "include",
-      body: body === undefined ? undefined : JSON.stringify(body),
+      body: requestBody,
       signal,
     });
   } catch (err) {

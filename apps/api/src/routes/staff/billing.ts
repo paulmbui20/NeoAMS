@@ -122,4 +122,18 @@ export const staffBillingRoutes =
         );
       },
     );
+
+    app.delete(
+      "/payment-options/:optionId",
+      { preHandler: can("property:manage") },
+      async (req) => {
+        const { propertyId, optionId } = parse(OptionParams, req.params);
+        return billing.updatePaymentOption(
+          propertyId,
+          optionId,
+          { isActive: false },
+          req.actor,
+        );
+      },
+    );
   };

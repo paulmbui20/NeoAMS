@@ -1,7 +1,7 @@
 // src/services/finance.ts
 // Expenses, expense categories and the reports the dashboard shows.
 import { and, desc, eq, gte, inArray, lte, sql } from "drizzle-orm";
-import { ConflictError, NotFoundError } from "../core/errors";
+import { ConflictError, NotFoundError, ValidationError } from "../core/errors";
 import type { Db } from "../db";
 import {
   bookings,
@@ -30,6 +30,67 @@ export const createFinanceService = ({ db }: { db: Db }) => {
       );
     }
     return db.insert(expenseCategories).values(input).returning().get();
+  };
+
+  const getCategory = (id: number) => {
+    const row = db
+      .select()
+      .from(expenseCategories)
+      .where(eq(expenseCategories.id, id))
+      .get();
+    if (!row) throw new NotFoundError("Expense category");
+    return row;
+  };
+
+  const updateCategory = (
+    id: number,
+    patch: { name?: string; description?: string | null },
+  ) => {
+    if (Object.keys(patch).length === 0)
+      throw new ValidationError("Nothing to update");
+    getCategory(id);
+    if (patch.name) {
+      const duplicate = db
+        .select({ id: expenseCategories.id })
+        .from(expenseCategories)
+        .where(
+          and(
+            eq(expenseCategories.name, patch.name),
+            sql`${expenseCategories.id} <> ${id}`,
+          ),
+        )
+        .get();
+      if (duplicate) {
+        throw new ConflictError(
+          "CATEGORY_EXISTS",
+          "That expense category already exists",
+        );
+      }
+    }
+    db.update(expenseCategories)
+      .set(patch)
+      .where(eq(expenseCategories.id, id))
+      .run();
+    return getCategory(id);
+  };
+
+  const deleteCategory = (id: number) => {
+    const category = getCategory(id);
+    const used = db
+      .select({
+        count: sql<number>`count(*)`,
+      })
+      .from(expenses)
+      .where(eq(expenses.categoryId, id))
+      .get()!.count;
+    if (used > 0) {
+      throw new ConflictError(
+        "CATEGORY_IN_USE",
+        "This category is used by existing expenses and cannot be deleted",
+      );
+    }
+    db.delete(expenseCategories).where(eq(expenseCategories.id, id)).run();
+    return { deleted: true, category };
   };
 
   /* --------------------------------------------------------------- expenses */
@@ -152,7 +213,7 @@ export const createFinanceService = ({ db }: { db: Db }) => {
   /** The calendar day a stay ended, in the property's timezone. */
   const checkoutDay = sql`date(${bookings.checkOutDate} / 1000, 'unixepoch')`;
 
-  /** Room revenue plus expenses for a date window. */
+  /** Financial totals for a date window. */
   const summary = (propertyId: number, from?: string, to?: string) => {
     const roomIds = roomIdsFor(propertyId);
     const scoped = roomIds.length
@@ -185,20 +246,23 @@ export const createFinanceService = ({ db }: { db: Db }) => {
         .where(and(...expenseFilters))
         .get()?.total ?? 0;
 
+    const paymentDay = sql`date(${payments.paymentDate} / 1000, 'unixepoch')`;
+    const paymentFilters = [scoped, eq(payments.status, "succeeded")];
+    if (from) paymentFilters.push(gte(paymentDay, from) as never);
+    if (to) paymentFilters.push(lte(paymentDay, to) as never);
+
     const collected =
       db
         .select({
-          total: sql<number>`coalesce(sum(${payments.amountCents}), 0)`,
+          total: sql<number>`coalesce(sum(case
+            when ${payments.type} in ('deposit', 'payment') then ${payments.amountCents}
+            when ${payments.type} = 'refund' then -${payments.amountCents}
+            else 0
+          end), 0)`,
         })
         .from(payments)
         .innerJoin(bookings, eq(bookings.id, payments.bookingId))
-        .where(
-          and(
-            scoped,
-            eq(payments.status, "succeeded"),
-            eq(payments.type, "payment"),
-          ),
-        )
+        .where(and(...paymentFilters))
         .get()?.total ?? 0;
 
     const bookingCount =
@@ -255,6 +319,9 @@ export const createFinanceService = ({ db }: { db: Db }) => {
   return {
     listCategories,
     createCategory,
+    getCategory,
+    updateCategory,
+    deleteCategory,
     listExpenses,
     getExpense,
     createExpense,

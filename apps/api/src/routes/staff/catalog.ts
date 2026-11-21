@@ -14,13 +14,17 @@ import {
   UpdateRoomStatus,
   UpdateRoomType,
   UpdateService,
+  UpdateAmenity,
   parse,
 } from "@neoams/shared";
 import { IdParams, PropertyParams } from "@neoams/shared";
 import type { RouteDeps } from "../../http/types";
 
 export const staffCatalogRoutes =
-  ({ services: { catalog }, guards: { can } }: RouteDeps): FastifyPluginAsync =>
+  ({
+    services: { catalog, storage },
+    guards: { can },
+  }: RouteDeps): FastifyPluginAsync =>
   async (app) => {
     /* ---------------------------------------------------------- room types */
 
@@ -62,6 +66,21 @@ export const staffCatalogRoutes =
         const { propertyId, id } = parse(IdParams, req.params);
         const patch = parse(UpdateRoomType, req.body);
         return catalog.updateRoomType(propertyId, id, patch);
+      },
+    );
+
+    app.delete(
+      "/room-types/:id",
+      { preHandler: can("catalog:manage") },
+      async (req) => {
+        const { propertyId, id } = parse(IdParams, req.params);
+        const result = catalog.deleteRoomType(propertyId, id);
+        for (const imageUrl of result.imageUrls) {
+          if (!catalog.isImageReferenced(imageUrl)) {
+            await storage.delete(imageUrl.replace("/uploads/", ""));
+          }
+        }
+        return { deleted: true, roomType: result.roomType };
       },
     );
 
@@ -110,6 +129,15 @@ export const staffCatalogRoutes =
       },
     );
 
+    app.delete(
+      "/rooms/:id",
+      { preHandler: can("catalog:manage") },
+      async (req) => {
+        const { propertyId, id } = parse(IdParams, req.params);
+        return catalog.deleteRoom(propertyId, id);
+      },
+    );
+
     /** Housekeeping changes the physical state only. */
     app.patch(
       "/rooms/:id/status",
@@ -139,6 +167,25 @@ export const staffCatalogRoutes =
       async (req, reply) => {
         const input = parse(CreateAmenity, req.body);
         return reply.code(201).send(catalog.createAmenity(input));
+      },
+    );
+
+    app.patch(
+      "/amenities/:id",
+      { preHandler: can("property:manage") },
+      async (req) => {
+        const { id } = parse(IdParams, req.params);
+        const patch = parse(UpdateAmenity, req.body);
+        return catalog.updateAmenity(id, patch);
+      },
+    );
+
+    app.delete(
+      "/amenities/:id",
+      { preHandler: can("property:manage") },
+      async (req) => {
+        const { id } = parse(IdParams, req.params);
+        return catalog.deleteAmenity(id);
       },
     );
 
@@ -176,6 +223,15 @@ export const staffCatalogRoutes =
         const { propertyId, id } = parse(IdParams, req.params);
         const patch = parse(UpdateService, req.body);
         return catalog.updateService(propertyId, id, patch);
+      },
+    );
+
+    app.delete(
+      "/services/:id",
+      { preHandler: can("catalog:manage") },
+      async (req) => {
+        const { propertyId, id } = parse(IdParams, req.params);
+        return catalog.archiveService(propertyId, id);
       },
     );
   };

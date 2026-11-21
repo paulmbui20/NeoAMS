@@ -4,7 +4,7 @@
 import type { FastifyPluginAsync } from "fastify";
 import * as s from "superstruct";
 import { parse } from "@neoams/shared";
-import { ValidationError } from "../core/errors";
+import { ConflictError, ValidationError } from "../core/errors";
 import { assertAllowedImage } from "../core/uploads";
 import type { RouteDeps } from "../http/types";
 
@@ -12,7 +12,11 @@ import type { RouteDeps } from "../http/types";
 const SAFE_NAME = /^[a-f0-9-]+\.(jpg|png|webp)$/;
 
 export const uploadRoutes =
-  ({ services: { storage }, guards, env }: RouteDeps): FastifyPluginAsync =>
+  ({
+    services: { catalog, storage },
+    guards,
+    env,
+  }: RouteDeps): FastifyPluginAsync =>
   async (app) => {
     /**
      * Accepts one multipart file under the field name `file`.
@@ -56,6 +60,25 @@ export const uploadRoutes =
         const image = assertAllowedImage(buffer);
         const saved = await storage.save(buffer, image);
         return reply.code(201).send(saved);
+      },
+    );
+
+    app.delete(
+      "/uploads/:filename",
+      { preHandler: guards.requireUser },
+      async (req, reply) => {
+        const { filename } = parse(
+          s.object({ filename: s.pattern(s.string(), SAFE_NAME) }),
+          req.params,
+        );
+        if (catalog.isImageReferenced(`/uploads/${filename}`)) {
+          throw new ConflictError(
+            "IMAGE_IN_USE",
+            "This image is attached to a property or room type",
+          );
+        }
+        await storage.delete(filename);
+        return reply.code(204).send();
       },
     );
 

@@ -5,6 +5,7 @@ import {
   assignStaff,
   createTestCtx,
   createUser,
+  seedProperty,
   signIn,
   type TestCtx,
 } from "./helpers";
@@ -84,14 +85,20 @@ describe("image detection", () => {
 describe("uploads", () => {
   let ctx: TestCtx;
   let cookie: string;
+  let propertyId: number;
+  let roomTypeId: number;
 
   beforeAll(async () => {
     ctx = createTestCtx();
+    const seeded = seedProperty(ctx, "Image Lodge");
+    propertyId = seeded.property.id;
+    roomTypeId = seeded.roomType.id;
     const user = await createUser(ctx, {
       email: "uploader@example.com",
       password: "Test1234#!",
     });
     expect(user.id).toBeString();
+    assignStaff(ctx, propertyId, user.id, "owner");
     cookie = await signIn(ctx, "uploader@example.com");
   });
 
@@ -129,6 +136,92 @@ describe("uploads", () => {
     // The client's filename is not used.
     expect(body.filename).not.toContain("holiday");
     expect(body.url).toBe(`/uploads/${body.filename}`);
+    const cleanup = await ctx.app.inject({
+      method: "DELETE",
+      url: `/api/v1/uploads/${body.filename}`,
+      headers: { cookie },
+    });
+    expect(cleanup.statusCode).toBe(204);
+  });
+
+  it("deletes uploaded files only after all image references are removed", async () => {
+    const { payload, headers } = multipart(
+      PNG_BYTES,
+      "shared.png",
+      "image/png",
+    );
+    const uploaded = await ctx.app.inject({
+      method: "POST",
+      url: "/api/v1/uploads",
+      headers: { ...headers, cookie },
+      payload,
+    });
+    expect(uploaded.statusCode).toBe(201);
+    const { filename, url } = uploaded.json();
+
+    const propertyImage = await ctx.app.inject({
+      method: "POST",
+      url: `/api/v1/properties/${propertyId}/images`,
+      headers: { cookie, "content-type": "application/json" },
+      payload: { imageUrl: url, altText: "Property", isPrimary: true },
+    });
+    expect(propertyImage.statusCode).toBe(201);
+
+    const roomTypeImage = await ctx.app.inject({
+      method: "POST",
+      url: `/api/v1/properties/${propertyId}/room-types/${roomTypeId}/images`,
+      headers: { cookie, "content-type": "application/json" },
+      payload: { imageUrl: url, altText: "Room type" },
+    });
+    expect(roomTypeImage.statusCode).toBe(201);
+
+    const inUse = await ctx.app.inject({
+      method: "DELETE",
+      url: `/api/v1/uploads/${filename}`,
+      headers: { cookie },
+    });
+    expect(inUse.statusCode).toBe(409);
+    expect(inUse.json().error.code).toBe("IMAGE_IN_USE");
+
+    const listed = await ctx.app.inject({
+      method: "GET",
+      url: `/api/v1/properties/${propertyId}/images`,
+      headers: { cookie },
+    });
+    expect(listed.json().data).toHaveLength(1);
+
+    const updated = await ctx.app.inject({
+      method: "PATCH",
+      url: `/api/v1/properties/${propertyId}/images/${propertyImage.json().id}`,
+      headers: { cookie, "content-type": "application/json" },
+      payload: { altText: "Updated property image" },
+    });
+    expect(updated.statusCode).toBe(200);
+    expect(updated.json().altText).toBe("Updated property image");
+
+    const deletedPropertyImage = await ctx.app.inject({
+      method: "DELETE",
+      url: `/api/v1/properties/${propertyId}/images/${propertyImage.json().id}`,
+      headers: { cookie },
+    });
+    expect(deletedPropertyImage.statusCode).toBe(200);
+    const stillReferenced = await ctx.app.inject({
+      method: "GET",
+      url: `/api/v1/uploads/${filename}`,
+    });
+    expect(stillReferenced.statusCode).toBe(200);
+
+    const deletedRoomTypeImage = await ctx.app.inject({
+      method: "DELETE",
+      url: `/api/v1/properties/${propertyId}/room-types/${roomTypeId}/images/${roomTypeImage.json().id}`,
+      headers: { cookie },
+    });
+    expect(deletedRoomTypeImage.statusCode).toBe(200);
+    const removed = await ctx.app.inject({
+      method: "GET",
+      url: `/api/v1/uploads/${filename}`,
+    });
+    expect(removed.statusCode).toBe(404);
   });
 
   it("serves the stored image with the right type", async () => {
@@ -148,6 +241,12 @@ describe("uploads", () => {
     expect(res.statusCode).toBe(200);
     expect(res.headers["content-type"]).toBe("image/png");
     expect(res.headers["x-content-type-options"]).toBe("nosniff");
+    const cleanup = await ctx.app.inject({
+      method: "DELETE",
+      url: `/api/v1/uploads/${filename}`,
+      headers: { cookie },
+    });
+    expect(cleanup.statusCode).toBe(204);
   });
 
   it("refuses a file that is not an image, whatever the header says", async () => {
@@ -187,6 +286,12 @@ describe("uploads", () => {
     });
     expect(jpegRes.statusCode).toBe(201);
     expect(jpegRes.json().mimeType).toBe("image/jpeg");
+    const deleteJpeg = await ctx.app.inject({
+      method: "DELETE",
+      url: `/api/v1/uploads/${jpegRes.json().filename}`,
+      headers: { cookie },
+    });
+    expect(deleteJpeg.statusCode).toBe(204);
 
     const webp = multipart(WEBP_BYTES, "a.webp", "image/webp");
     const webpRes = await ctx.app.inject({
@@ -197,6 +302,12 @@ describe("uploads", () => {
     });
     expect(webpRes.statusCode).toBe(201);
     expect(webpRes.json().mimeType).toBe("image/webp");
+    const deleteWebp = await ctx.app.inject({
+      method: "DELETE",
+      url: `/api/v1/uploads/${webpRes.json().filename}`,
+      headers: { cookie },
+    });
+    expect(deleteWebp.statusCode).toBe(204);
   });
 
   it("refuses an empty file", async () => {

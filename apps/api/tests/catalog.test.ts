@@ -9,11 +9,13 @@ import {
   signIn,
   type TestCtx,
 } from "./helpers";
+import { bookings, guests } from "../src/db/schema";
 
 describe("catalog", () => {
   let ctx: TestCtx;
   let propertyId: number;
   let roomTypeId: number;
+  let roomIdToDelete: number;
   let cookie: string;
 
   beforeAll(async () => {
@@ -140,6 +142,47 @@ describe("catalog", () => {
     expect(res.json().description).toBe("Renovated");
   });
 
+  it("clears optional room type fields with null", async () => {
+    const res = await ctx.app.inject({
+      method: "PATCH",
+      url: `/api/v1/properties/${propertyId}/room-types/${roomTypeId}`,
+      headers: { cookie, "content-type": "application/json" },
+      payload: {
+        description: null,
+        bedConfiguration: null,
+        pricePerHourCents: null,
+      },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().description).toBeNull();
+    expect(res.json().bedConfiguration).toBeNull();
+    expect(res.json().pricePerHourCents).toBeNull();
+  });
+
+  it("blocks deletion of room types with rooms and deletes unused room types", async () => {
+    const blocked = await ctx.app.inject({
+      method: "DELETE",
+      url: `/api/v1/properties/${propertyId}/room-types/${roomTypeId}`,
+      headers: { cookie },
+    });
+    expect(blocked.statusCode).toBe(409);
+
+    const unused = await ctx.app.inject({
+      method: "POST",
+      url: `/api/v1/properties/${propertyId}/room-types`,
+      headers: { cookie, "content-type": "application/json" },
+      payload: { name: "Unused Type", pricePerNightCents: 0 },
+    });
+    expect(unused.statusCode).toBe(201);
+    const deleted = await ctx.app.inject({
+      method: "DELETE",
+      url: `/api/v1/properties/${propertyId}/room-types/${unused.json().id}`,
+      headers: { cookie },
+    });
+    expect(deleted.statusCode).toBe(200);
+    expect(deleted.json().deleted).toBe(true);
+  });
+
   it("sets the amenities of a room type", async () => {
     const amenity = await ctx.app.inject({
       method: "POST",
@@ -206,6 +249,7 @@ describe("catalog", () => {
     expect(res.statusCode).toBe(201);
     expect(res.json().status).toBe("available");
     expect(res.json().isActive).toBe(true);
+    roomIdToDelete = res.json().id;
   });
 
   it("refuses a duplicate room number", async () => {
@@ -292,6 +336,67 @@ describe("catalog", () => {
     expect(res.json().isActive).toBe(false);
   });
 
+  it("clears optional room fields with null", async () => {
+    const res = await ctx.app.inject({
+      method: "PATCH",
+      url: `/api/v1/properties/${propertyId}/rooms/1`,
+      headers: { cookie, "content-type": "application/json" },
+      payload: { floor: null, description: null },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().floor).toBeNull();
+    expect(res.json().description).toBeNull();
+  });
+
+  it("deletes a room without booking history", async () => {
+    const res = await ctx.app.inject({
+      method: "DELETE",
+      url: `/api/v1/properties/${propertyId}/rooms/${roomIdToDelete}`,
+      headers: { cookie },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().deleted).toBe(true);
+  });
+
+  it("blocks deletion of a room with booking history", async () => {
+    const room = await ctx.app.inject({
+      method: "POST",
+      url: `/api/v1/properties/${propertyId}/rooms`,
+      headers: { cookie, "content-type": "application/json" },
+      payload: { roomTypeId, roomNumber: "103" },
+    });
+    expect(room.statusCode).toBe(201);
+    const guest = ctx.db
+      .insert(guests)
+      .values({
+        firstName: "History",
+        lastName: "Guest",
+        phone: "+254700009999",
+      })
+      .returning()
+      .get();
+    ctx.db
+      .insert(bookings)
+      .values({
+        guestId: guest.id,
+        roomId: room.json().id,
+        bookingReferenceCode: "CAT-ROOM-HISTORY",
+        status: "cancelled",
+        totalCostCents: 0,
+        checkInDate: new Date("2031-01-01T10:00:00.000Z"),
+        checkOutDate: new Date("2031-01-02T10:00:00.000Z"),
+      })
+      .run();
+
+    const blocked = await ctx.app.inject({
+      method: "DELETE",
+      url: `/api/v1/properties/${propertyId}/rooms/${room.json().id}`,
+      headers: { cookie },
+    });
+    expect(blocked.statusCode).toBe(409);
+    expect(blocked.json().error.code).toBe("ROOM_HAS_BOOKINGS");
+  });
+
   /* ------------------------------------------------------------- amenities */
 
   it("lists every amenity with the selected ones", async () => {
@@ -340,6 +445,83 @@ describe("catalog", () => {
     expect(read.json().data.selected).toEqual([amenityId]);
   });
 
+  it("updates amenities and blocks deleting amenities while assigned", async () => {
+    const created = await ctx.app.inject({
+      method: "POST",
+      url: `/api/v1/properties/${propertyId}/amenities`,
+      headers: { cookie, "content-type": "application/json" },
+      payload: { name: "Sauna", icon: "sparkles" },
+    });
+    expect(created.statusCode).toBe(201);
+    const amenityId = created.json().id;
+
+    const updated = await ctx.app.inject({
+      method: "PATCH",
+      url: `/api/v1/properties/${propertyId}/amenities/${amenityId}`,
+      headers: { cookie, "content-type": "application/json" },
+      payload: { name: "Private Sauna" },
+    });
+    expect(updated.statusCode).toBe(200);
+    expect(updated.json().name).toBe("Private Sauna");
+    const clearedIcon = await ctx.app.inject({
+      method: "PATCH",
+      url: `/api/v1/properties/${propertyId}/amenities/${amenityId}`,
+      headers: { cookie, "content-type": "application/json" },
+      payload: { icon: null },
+    });
+    expect(clearedIcon.statusCode).toBe(200);
+    expect(clearedIcon.json().icon).toBeNull();
+
+    const assignedToProperty = await ctx.app.inject({
+      method: "PUT",
+      url: `/api/v1/properties/${propertyId}/amenities`,
+      headers: { cookie, "content-type": "application/json" },
+      payload: { amenityIds: [amenityId] },
+    });
+    expect(assignedToProperty.statusCode).toBe(200);
+
+    const blocked = await ctx.app.inject({
+      method: "DELETE",
+      url: `/api/v1/properties/${propertyId}/amenities/${amenityId}`,
+      headers: { cookie },
+    });
+    expect(blocked.statusCode).toBe(409);
+    expect(blocked.json().error.code).toBe("AMENITY_IN_USE");
+
+    await ctx.app.inject({
+      method: "PUT",
+      url: `/api/v1/properties/${propertyId}/amenities`,
+      headers: { cookie, "content-type": "application/json" },
+      payload: { amenityIds: [] },
+    });
+    await ctx.app.inject({
+      method: "PUT",
+      url: `/api/v1/properties/${propertyId}/room-types/${roomTypeId}/amenities`,
+      headers: { cookie, "content-type": "application/json" },
+      payload: { amenityIds: [amenityId] },
+    });
+    const blockedByRoomType = await ctx.app.inject({
+      method: "DELETE",
+      url: `/api/v1/properties/${propertyId}/amenities/${amenityId}`,
+      headers: { cookie },
+    });
+    expect(blockedByRoomType.statusCode).toBe(409);
+
+    await ctx.app.inject({
+      method: "PUT",
+      url: `/api/v1/properties/${propertyId}/room-types/${roomTypeId}/amenities`,
+      headers: { cookie, "content-type": "application/json" },
+      payload: { amenityIds: [] },
+    });
+    const deleted = await ctx.app.inject({
+      method: "DELETE",
+      url: `/api/v1/properties/${propertyId}/amenities/${amenityId}`,
+      headers: { cookie },
+    });
+    expect(deleted.statusCode).toBe(200);
+    expect(deleted.json().deleted).toBe(true);
+  });
+
   /* -------------------------------------------------------------- services */
 
   it("creates a service", async () => {
@@ -364,7 +546,7 @@ describe("catalog", () => {
     expect(res.json().data.length).toBe(1);
   });
 
-  it("retires a service instead of deleting it", async () => {
+  it("archives a service instead of deleting it", async () => {
     const list = await ctx.app.inject({
       method: "GET",
       url: `/api/v1/properties/${propertyId}/services`,
@@ -372,14 +554,12 @@ describe("catalog", () => {
     });
     const id = list.json().data[0].id;
     const res = await ctx.app.inject({
-      method: "PATCH",
+      method: "DELETE",
       url: `/api/v1/properties/${propertyId}/services/${id}`,
-      headers: { cookie, "content-type": "application/json" },
-      payload: { isActive: false, priceCents: 6_000 },
+      headers: { cookie },
     });
     expect(res.statusCode).toBe(200);
     expect(res.json().isActive).toBe(false);
-    expect(res.json().priceCents).toBe(6_000);
 
     const after = await ctx.app.inject({
       method: "GET",
@@ -387,6 +567,25 @@ describe("catalog", () => {
       headers: { cookie },
     });
     expect(after.json().data.length).toBe(1);
+    expect(after.json().data[0].isActive).toBe(false);
+
+    const restored = await ctx.app.inject({
+      method: "PATCH",
+      url: `/api/v1/properties/${propertyId}/services/${id}`,
+      headers: { cookie, "content-type": "application/json" },
+      payload: { isActive: true, priceCents: 6_000 },
+    });
+    expect(restored.statusCode).toBe(200);
+    expect(restored.json().isActive).toBe(true);
+    expect(restored.json().priceCents).toBe(6_000);
+    const clearedDescription = await ctx.app.inject({
+      method: "PATCH",
+      url: `/api/v1/properties/${propertyId}/services/${id}`,
+      headers: { cookie, "content-type": "application/json" },
+      payload: { description: null },
+    });
+    expect(clearedDescription.statusCode).toBe(200);
+    expect(clearedDescription.json().description).toBeNull();
   });
 
   it("answers 404 for a service of another property", async () => {

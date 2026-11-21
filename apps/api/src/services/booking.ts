@@ -1032,6 +1032,28 @@ export const createBookingService = ({
             "TOO_MANY_PROOFS",
             "Please contact the property to confirm your payment",
           );
+        const pendingCents = tx
+          .select({
+            n: sql<number>`coalesce(sum(${payments.amountCents}), 0)`,
+          })
+          .from(payments)
+          .where(
+            and(
+              eq(payments.bookingId, booking.id),
+              eq(payments.status, "pending"),
+            ),
+          )
+          .get()!.n;
+        const availableCents = Math.max(
+          0,
+          billing.balance(tx, booking.id).balanceCents - pendingCents,
+        );
+        if (input.amountCents > availableCents) {
+          throw new ConflictError(
+            "PAYMENT_EXCEEDS_BALANCE",
+            `Only KES ${(availableCents / 100).toFixed(2)} remains available for payment proof`,
+          );
+        }
 
         // Extending an expired hold must not double-allocate a room someone else has since booked.
         if (booking.status === "pending" && booking.holdExpiresAt) {

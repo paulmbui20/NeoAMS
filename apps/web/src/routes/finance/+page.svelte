@@ -33,6 +33,7 @@
   import {
     Plus,
     Pencil,
+    Trash2,
     RotateCcw,
     CreditCard,
     Receipt,
@@ -76,6 +77,8 @@
     type: string;
     status: string;
     amountCents: number;
+    refundOfPaymentId: number | null;
+    refundedCents: number;
     paymentMethod: string | null;
     transactionReferenceCode: string | null;
     proofMessage: string | null;
@@ -87,6 +90,17 @@
     id: number;
     name: string;
     description: string | null;
+  };
+
+  type PaymentOption = {
+    id: number;
+    kind: string;
+    label: string;
+    accountNumber: string | null;
+    accountName: string | null;
+    instructions: string | null;
+    sortOrder: number;
+    isActive: boolean;
   };
 
   type ExpenseDraft = {
@@ -117,6 +131,7 @@
   let expenses = $state<Expense[]>([]);
   let payments = $state<Payment[]>([]);
   let expenseCategories = $state<ExpenseCategory[]>([]);
+  let paymentOptions = $state<PaymentOption[]>([]);
   let loading = $state(false);
   let error = $state<string | null>(null);
   let tab = $state<"payments" | "expenses">("payments");
@@ -150,8 +165,26 @@
 
   // Expense Category Modal state
   let addingCategory = $state(false);
+  let categoryEditorOpen = $state(false);
   let categoryForm = $state({ name: "", description: "" });
+  let editingCategoryId = $state<number | null>(null);
   let categoryBusy = $state(false);
+  let managingPaymentOptions = $state(false);
+  let paymentOptionEditorOpen = $state(false);
+  let editingPaymentOptionId = $state<number | null>(null);
+  let paymentOptionForm = $state({
+    kind: "mpesa_till",
+    label: "",
+    accountNumber: "",
+    accountName: "",
+    instructions: "",
+    sortOrder: 0,
+    isActive: true,
+  });
+  let paymentOptionBusy = $state(false);
+  const canManagePaymentOptions = $derived(
+    session.isAdmin || workspace.current?.role === "owner",
+  );
 
   // Process Refund Modal state
   let refundingPayment = $state<Payment | null>(null);
@@ -230,8 +263,27 @@
         `/properties/${propertyId}/expense-categories`,
       );
       expenseCategories = result.data;
-    } catch {
-      // Non-fatal if categories fail
+    } catch (err) {
+      toast.error(
+        "Could not load expense categories",
+        err instanceof ApiError ? err.message : "Please try again.",
+      );
+    }
+  }
+
+  async function loadPaymentOptions() {
+    const propertyId = workspace.currentId;
+    if (propertyId === null) return;
+    try {
+      const result = await api.get<{ data: PaymentOption[] }>(
+        `/properties/${propertyId}/payment-options`,
+      );
+      paymentOptions = result.data;
+    } catch (err) {
+      toast.error(
+        "Could not load payment options",
+        err instanceof ApiError ? err.message : "Please try again.",
+      );
     }
   }
 
@@ -419,24 +471,54 @@
   }
 
   // --- Category Management ---
+  function editCategory(category: ExpenseCategory) {
+    editingCategoryId = category.id;
+    categoryEditorOpen = true;
+    categoryForm = {
+      name: category.name,
+      description: category.description ?? "",
+    };
+  }
+
+  function newCategory() {
+    editingCategoryId = null;
+    categoryEditorOpen = true;
+    categoryForm = { name: "", description: "" };
+  }
+
   async function submitCategory() {
-    if (!categoryForm.name.trim()) return;
+    if (!categoryForm.name.trim()) {
+      toast.error("Category name is required.");
+      return;
+    }
     const propertyId = workspace.currentId;
     if (propertyId === null) return;
 
     categoryBusy = true;
     try {
-      await api.post(`/properties/${propertyId}/expense-categories`, {
+      const payload = {
         name: categoryForm.name.trim(),
-        description: categoryForm.description.trim() || undefined,
-      });
-      toast.success("Category created", categoryForm.name);
+        description:
+          categoryForm.description.trim() ||
+          (editingCategoryId !== null ? null : undefined),
+      };
+      if (editingCategoryId !== null) {
+        await api.patch(
+          `/properties/${propertyId}/expense-categories/${editingCategoryId}`,
+          payload,
+        );
+        toast.success("Category updated", categoryForm.name);
+      } else {
+        await api.post(`/properties/${propertyId}/expense-categories`, payload);
+        toast.success("Category created", categoryForm.name);
+      }
       categoryForm = { name: "", description: "" };
-      addingCategory = false;
+      editingCategoryId = null;
+      categoryEditorOpen = false;
       await loadCategories();
     } catch (err) {
       toast.error(
-        "Could not create category",
+        "Could not save category",
         err instanceof ApiError ? err.message : "Please try again.",
       );
     } finally {
@@ -444,11 +526,132 @@
     }
   }
 
+  async function deleteExpenseCategory(category: ExpenseCategory) {
+    const propertyId = workspace.currentId;
+    if (propertyId === null) return;
+    if (!window.confirm(`Delete expense category "${category.name}"?`)) return;
+    try {
+      await api.delete(
+        `/properties/${propertyId}/expense-categories/${category.id}`,
+      );
+      toast.success("Category deleted", category.name);
+      if (editingCategoryId === category.id) newCategory();
+      await loadCategories();
+    } catch (err) {
+      toast.error(
+        "Could not delete category",
+        err instanceof ApiError ? err.message : "Please try again.",
+      );
+    }
+  }
+
+  function openPaymentOption(option?: PaymentOption) {
+    editingPaymentOptionId = option?.id ?? null;
+    paymentOptionEditorOpen = true;
+    paymentOptionForm = option
+      ? {
+          kind: option.kind,
+          label: option.label,
+          accountNumber: option.accountNumber ?? "",
+          accountName: option.accountName ?? "",
+          instructions: option.instructions ?? "",
+          sortOrder: option.sortOrder,
+          isActive: option.isActive,
+        }
+      : {
+          kind: "mpesa_till",
+          label: "",
+          accountNumber: "",
+          accountName: "",
+          instructions: "",
+          sortOrder: 0,
+          isActive: true,
+        };
+  }
+
+  function showPaymentOptionList() {
+    editingPaymentOptionId = null;
+    paymentOptionEditorOpen = false;
+  }
+
+  async function submitPaymentOption() {
+    const propertyId = workspace.currentId;
+    if (propertyId === null) return;
+    if (!paymentOptionForm.label.trim()) {
+      toast.error("Payment option label is required.");
+      return;
+    }
+    if (
+      !Number.isInteger(paymentOptionForm.sortOrder) ||
+      paymentOptionForm.sortOrder < 0 ||
+      paymentOptionForm.sortOrder > 1000
+    ) {
+      toast.error("Sort order must be a whole number between 0 and 1000.");
+      return;
+    }
+
+    paymentOptionBusy = true;
+    try {
+      const payload = {
+        ...paymentOptionForm,
+        label: paymentOptionForm.label.trim(),
+        accountNumber:
+          paymentOptionForm.accountNumber.trim() ||
+          (editingPaymentOptionId !== null ? null : undefined),
+        accountName:
+          paymentOptionForm.accountName.trim() ||
+          (editingPaymentOptionId !== null ? null : undefined),
+        instructions:
+          paymentOptionForm.instructions.trim() ||
+          (editingPaymentOptionId !== null ? null : undefined),
+      };
+      if (editingPaymentOptionId !== null) {
+        await api.patch(
+          `/properties/${propertyId}/payment-options/${editingPaymentOptionId}`,
+          payload,
+        );
+        toast.success("Payment option updated");
+      } else {
+        await api.post(`/properties/${propertyId}/payment-options`, payload);
+        toast.success("Payment option created");
+      }
+      managingPaymentOptions = false;
+      paymentOptionEditorOpen = false;
+      await loadPaymentOptions();
+    } catch (err) {
+      toast.error(
+        "Could not save payment option",
+        err instanceof ApiError ? err.message : "Please try again.",
+      );
+    } finally {
+      paymentOptionBusy = false;
+    }
+  }
+
+  async function archivePaymentOption(option: PaymentOption) {
+    const propertyId = workspace.currentId;
+    if (propertyId === null) return;
+    try {
+      await api.delete(
+        `/properties/${propertyId}/payment-options/${option.id}`,
+      );
+      toast.success("Payment option archived", option.label);
+      await loadPaymentOptions();
+    } catch (err) {
+      toast.error(
+        "Could not archive payment option",
+        err instanceof ApiError ? err.message : "Please try again.",
+      );
+    }
+  }
+
   // --- Refund Management ---
   function openRefund(p: Payment) {
     refundingPayment = p;
     refundForm = {
-      amountShillings: centsToShillings(p.amountCents),
+      amountShillings: centsToShillings(
+        Math.max(0, p.amountCents - p.refundedCents),
+      ),
       paymentMethod: p.paymentMethod ?? "mpesa",
       reason: "",
       transactionReferenceCode: "",
@@ -469,7 +672,11 @@
       !refundForm.reason.trim() ||
       !Number.isFinite(refundForm.amountShillings) ||
       amountCents <= 0 ||
-      amountCents > refundingPayment.amountCents ||
+      amountCents >
+        Math.max(
+          0,
+          refundingPayment.amountCents - refundingPayment.refundedCents,
+        ) ||
       amountCents > 100_000_000
     ) {
       toast.error("Enter a valid refund amount and reason.");
@@ -515,7 +722,10 @@
 
   $effect(() => {
     const id = workspace.currentId;
-    if (id !== null && session.isSignedIn) void load();
+    if (id !== null && session.isSignedIn) {
+      void load();
+      void loadPaymentOptions();
+    }
   });
 
   const peak = $derived(
@@ -556,10 +766,26 @@
     </form>
 
     <div class="flex gap-2">
-      <Button variant="secondary" onclick={() => (addingCategory = true)}>
+      <Button
+        variant="secondary"
+        onclick={() => {
+          newCategory();
+          categoryEditorOpen = false;
+          addingCategory = true;
+        }}
+      >
         <Tag class="size-4 mr-1.5" />
         Categories
       </Button>
+      {#if canManagePaymentOptions}
+        <Button
+          variant="secondary"
+          onclick={() => (managingPaymentOptions = true)}
+        >
+          <CreditCard class="size-4 mr-1.5" />
+          Payment Methods
+        </Button>
+      {/if}
       <Button onclick={openAddExpenseModal}>
         <Plus class="size-4 mr-1.5" />
         Record Expense
@@ -686,6 +912,7 @@
                       >Booking Ref</th
                     >
                     <th class="px-4 py-2.5 font-medium text-ink-700">Guest</th>
+                    <th class="px-4 py-2.5 font-medium text-ink-700">Type</th>
                     <th class="px-4 py-2.5 font-medium text-ink-700">Method</th>
                     <th
                       class="px-4 py-2.5 text-right font-medium text-ink-700"
@@ -718,6 +945,9 @@
                           </span>
                         {/if}
                       </td>
+                      <td class="px-4 py-3 capitalize text-ink-muted">
+                        {payment.type}
+                      </td>
                       <td class="px-4 py-3 text-ink-muted">
                         <span class="capitalize"
                           >{payment.paymentMethod?.replace(/_/g, " ") ??
@@ -735,7 +965,14 @@
                         class="px-4 py-3 text-right font-medium text-ink tabular-nums"
                         data-numeric
                       >
-                        {formatMoney(payment.amountCents)}
+                        {#if payment.type === "refund"}−{/if}{formatMoney(
+                          payment.amountCents,
+                        )}
+                        {#if payment.refundedCents > 0}
+                          <span class="mt-0.5 block text-xs text-error">
+                            Refunded {formatMoney(payment.refundedCents)}
+                          </span>
+                        {/if}
                       </td>
                       <td class="px-4 py-3">
                         <Badge tone={paymentTone(payment.status)}>
@@ -761,7 +998,7 @@
                               Reject
                             </Button>
                           {/if}
-                          {#if payment.status === "succeeded"}
+                          {#if payment.status === "succeeded" && payment.type !== "refund" && payment.amountCents > payment.refundedCents}
                             <Button
                               size="sm"
                               variant="secondary"
@@ -1124,53 +1361,277 @@
   {/snippet}
 </Modal>
 
-<!-- Add Expense Category Modal -->
+<!-- Expense Category Management Modal -->
 <Modal
-  title="New Expense Category"
+  title={editingCategoryId === null
+    ? "Expense Categories"
+    : "Edit Expense Category"}
   open={addingCategory}
-  onclose={() => (addingCategory = false)}
-  width="max-w-md"
+  onclose={() => {
+    addingCategory = false;
+    categoryEditorOpen = false;
+    editingCategoryId = null;
+    categoryForm = { name: "", description: "" };
+  }}
+  width="max-w-lg"
 >
-  <div class="space-y-3">
-    <Field label="Category Name" required>
-      {#snippet children({ id, describedBy })}
-        <Input
-          {id}
-          {describedBy}
-          bind:value={categoryForm.name}
-          placeholder="e.g. Utilities, Housekeeping, Groceries"
-        />
-      {/snippet}
-    </Field>
+  <div class="space-y-4">
+    {#if !categoryEditorOpen}
+      <div class="max-h-48 space-y-2 overflow-y-auto">
+        {#each expenseCategories as category (category.id)}
+          <div
+            class="flex items-center justify-between gap-3 rounded-lg border border-line p-3"
+          >
+            <div class="min-w-0">
+              <p class="truncate text-sm font-medium text-ink">
+                {category.name}
+              </p>
+              {#if category.description}
+                <p class="truncate text-xs text-ink-muted">
+                  {category.description}
+                </p>
+              {/if}
+            </div>
+            <div class="flex shrink-0 gap-1">
+              <Button
+                size="sm"
+                variant="ghost"
+                aria-label={`Edit ${category.name}`}
+                onclick={() => editCategory(category)}
+              >
+                <Pencil class="size-3.5" />
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                aria-label={`Delete ${category.name}`}
+                onclick={() => deleteExpenseCategory(category)}
+              >
+                <Trash2 class="size-3.5 text-error" />
+              </Button>
+            </div>
+          </div>
+        {:else}
+          <p class="py-2 text-sm text-ink-muted">No expense categories yet.</p>
+        {/each}
+      </div>
+      <Button variant="secondary" onclick={newCategory}>
+        <Plus class="mr-1.5 size-4" />
+        Add category
+      </Button>
+    {/if}
 
-    <Field label="Description">
-      {#snippet children({ id, describedBy })}
-        <Input
-          {id}
-          {describedBy}
-          bind:value={categoryForm.description}
-          placeholder="Brief description of this cost center"
-        />
-      {/snippet}
-    </Field>
+    {#if categoryEditorOpen}
+      <Field label="Category Name" required>
+        {#snippet children({ id, describedBy })}
+          <Input
+            {id}
+            {describedBy}
+            bind:value={categoryForm.name}
+            placeholder="e.g. Utilities, Housekeeping, Groceries"
+          />
+        {/snippet}
+      </Field>
+
+      <Field label="Description">
+        {#snippet children({ id, describedBy })}
+          <Input
+            {id}
+            {describedBy}
+            bind:value={categoryForm.description}
+            placeholder="Brief description of this cost center"
+          />
+        {/snippet}
+      </Field>
+    {/if}
   </div>
 
   {#snippet footer()}
     <div class="flex justify-end gap-2">
       <Button
         variant="secondary"
-        onclick={() => (addingCategory = false)}
+        onclick={() => {
+          if (categoryEditorOpen) {
+            categoryEditorOpen = false;
+            editingCategoryId = null;
+            categoryForm = { name: "", description: "" };
+          } else addingCategory = false;
+        }}
         disabled={categoryBusy}
       >
-        Cancel
+        {categoryEditorOpen ? "Back" : "Done"}
       </Button>
-      <Button
-        onclick={submitCategory}
-        loading={categoryBusy}
-        disabled={categoryBusy}
-      >
-        Create Category
-      </Button>
+      {#if categoryEditorOpen}
+        <Button
+          onclick={submitCategory}
+          loading={categoryBusy}
+          disabled={categoryBusy}
+        >
+          {editingCategoryId === null ? "Create Category" : "Save Changes"}
+        </Button>
+      {/if}
+    </div>
+  {/snippet}
+</Modal>
+
+<!-- Payment Option Management Modal -->
+<Modal
+  title="Payment Methods"
+  open={managingPaymentOptions}
+  onclose={() => {
+    managingPaymentOptions = false;
+    showPaymentOptionList();
+  }}
+  width="max-w-2xl"
+>
+  {#if !paymentOptionEditorOpen}
+    <div class="mb-5 max-h-56 space-y-2 overflow-y-auto">
+      {#each paymentOptions as option (option.id)}
+        <div
+          class="flex items-center justify-between gap-3 rounded-lg border border-line p-3"
+        >
+          <div class="min-w-0">
+            <div class="flex items-center gap-2">
+              <p class="truncate text-sm font-medium text-ink">
+                {option.label}
+              </p>
+              <Badge tone={option.isActive ? "success" : "neutral"}>
+                {option.isActive ? "Active" : "Archived"}
+              </Badge>
+            </div>
+            <p class="truncate text-xs text-ink-muted">
+              {option.kind.replace(/_/g, " ")}
+              {#if option.accountNumber}
+                · {option.accountNumber}{/if}
+            </p>
+          </div>
+          <div class="flex shrink-0 gap-1">
+            <Button
+              size="sm"
+              variant="ghost"
+              onclick={() => openPaymentOption(option)}
+            >
+              <Pencil class="size-3.5" />
+              <span class="sr-only">Edit {option.label}</span>
+            </Button>
+            {#if option.isActive}
+              <Button
+                size="sm"
+                variant="ghost"
+                aria-label={`Archive ${option.label}`}
+                onclick={() => archivePaymentOption(option)}
+              >
+                <Trash2 class="size-3.5 text-error" />
+              </Button>
+            {/if}
+          </div>
+        </div>
+      {:else}
+        <p class="py-2 text-sm text-ink-muted">
+          No payment methods configured.
+        </p>
+      {/each}
+    </div>
+    <Button variant="secondary" onclick={() => openPaymentOption()}>
+      <Plus class="mr-1.5 size-4" />
+      Add payment method
+    </Button>
+  {/if}
+
+  {#if paymentOptionEditorOpen}
+    <div class="mt-4 grid gap-3 sm:grid-cols-2">
+      <Field label="Method" required>
+        {#snippet children({ id, describedBy })}
+          <select
+            {id}
+            aria-describedby={describedBy}
+            class="input w-full"
+            bind:value={paymentOptionForm.kind}
+          >
+            <option value="mpesa_till">M-Pesa Till</option>
+            <option value="mpesa_paybill">M-Pesa Paybill</option>
+            <option value="mpesa_send_money">M-Pesa Send Money</option>
+            <option value="bank_transfer">Bank Transfer</option>
+            <option value="other">Other</option>
+          </select>
+        {/snippet}
+      </Field>
+      <Field label="Display Label" required>
+        {#snippet children({ id, describedBy })}
+          <Input {id} {describedBy} bind:value={paymentOptionForm.label} />
+        {/snippet}
+      </Field>
+      <Field label="Account / Till Number">
+        {#snippet children({ id, describedBy })}
+          <Input
+            {id}
+            {describedBy}
+            bind:value={paymentOptionForm.accountNumber}
+          />
+        {/snippet}
+      </Field>
+      <Field label="Account Name">
+        {#snippet children({ id, describedBy })}
+          <Input
+            {id}
+            {describedBy}
+            bind:value={paymentOptionForm.accountName}
+          />
+        {/snippet}
+      </Field>
+      <Field label="Instructions">
+        {#snippet children({ id, describedBy })}
+          <Input
+            {id}
+            {describedBy}
+            bind:value={paymentOptionForm.instructions}
+          />
+        {/snippet}
+      </Field>
+      <Field label="Sort Order">
+        {#snippet children({ id, describedBy })}
+          <Input
+            {id}
+            {describedBy}
+            type="number"
+            min="0"
+            max="1000"
+            bind:value={paymentOptionForm.sortOrder}
+          />
+        {/snippet}
+      </Field>
+      <label class="flex items-center gap-2 text-sm text-ink">
+        <input type="checkbox" bind:checked={paymentOptionForm.isActive} />
+        Available to guests
+      </label>
+    </div>
+  {/if}
+
+  {#snippet footer()}
+    <div class="flex justify-end gap-2">
+      {#if paymentOptionEditorOpen}
+        <Button
+          variant="secondary"
+          onclick={showPaymentOptionList}
+          disabled={paymentOptionBusy}
+        >
+          Back
+        </Button>
+        <Button
+          onclick={submitPaymentOption}
+          loading={paymentOptionBusy}
+          disabled={paymentOptionBusy}
+        >
+          {editingPaymentOptionId === null ? "Create Method" : "Save Changes"}
+        </Button>
+      {:else}
+        <Button
+          variant="secondary"
+          onclick={() => (managingPaymentOptions = false)}
+        >
+          Done
+        </Button>
+      {/if}
     </div>
   {/snippet}
 </Modal>
@@ -1191,6 +1652,14 @@
         <p class="text-ink-muted mt-0.5">
           Original transaction: {formatMoney(refundingPayment.amountCents)} via {refundingPayment.paymentMethod}
         </p>
+        <p class="mt-0.5 text-ink-muted">
+          Remaining refundable: {formatMoney(
+            Math.max(
+              0,
+              refundingPayment.amountCents - refundingPayment.refundedCents,
+            ),
+          )}
+        </p>
       </div>
 
       <Field label="Refund Amount (KES)" required>
@@ -1200,7 +1669,13 @@
             {describedBy}
             type="number"
             min="0.01"
-            max={centsToShillings(refundingPayment?.amountCents ?? 0)}
+            max={centsToShillings(
+              Math.max(
+                0,
+                (refundingPayment?.amountCents ?? 0) -
+                  (refundingPayment?.refundedCents ?? 0),
+              ),
+            )}
             step="0.01"
             required
             bind:value={refundForm.amountShillings}

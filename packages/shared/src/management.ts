@@ -158,7 +158,18 @@ export const CreateRoomType = s.object({
   isActive: s.optional(s.boolean()),
 });
 
-export const UpdateRoomType = s.partial(CreateRoomType);
+export const UpdateRoomType = s.partial(
+  s.object({
+    name: text(1, 80),
+    slug: Slug,
+    description: s.nullable(text(1, 1000)),
+    pricePerNightCents: int(0, 100_000_000),
+    pricePerHourCents: s.nullable(int(0, 100_000_000)),
+    maxOccupancy: int(1, 20),
+    bedConfiguration: s.nullable(text(1, 60)),
+    isActive: s.boolean(),
+  }),
+);
 
 export const RoomTypeAmenities = s.object({
   amenityIds: s.array(Id),
@@ -179,9 +190,9 @@ export const UpdateRoom = s.partial(
   s.object({
     roomTypeId: Id,
     roomNumber: text(1, 20),
-    floor: s.optional(text(1, 60)),
-    description: s.optional(text(1, 500)),
-    isActive: s.optional(s.boolean()),
+    floor: s.nullable(text(1, 60)),
+    description: s.nullable(text(1, 500)),
+    isActive: s.boolean(),
   }),
 );
 
@@ -206,6 +217,13 @@ export const CreateAmenity = s.object({
   icon: s.optional(text(1, 40)),
 });
 
+export const UpdateAmenity = s.partial(
+  s.object({
+    name: text(1, 60),
+    icon: s.nullable(text(1, 40)),
+  }),
+);
+
 /* --------------------------------------------------------------- services */
 
 export const CreateService = s.object({
@@ -216,7 +234,15 @@ export const CreateService = s.object({
   isActive: s.optional(s.boolean()),
 });
 
-export const UpdateService = s.partial(CreateService);
+export const UpdateService = s.partial(
+  s.object({
+    name: text(1, 80),
+    slug: Slug,
+    description: s.nullable(text(1, 500)),
+    priceCents: int(0, 100_000_000),
+    isActive: s.boolean(),
+  }),
+);
 
 export const AddBookingService = s.object({
   serviceId: Id,
@@ -272,6 +298,13 @@ export const CreateExpenseCategory = s.object({
   name: text(1, 60),
   description: s.optional(text(1, 300)),
 });
+
+export const UpdateExpenseCategory = s.partial(
+  s.object({
+    name: text(1, 60),
+    description: s.nullable(text(1, 300)),
+  }),
+);
 
 export const ReportQuery = s.type({
   from: s.optional(YmdDate),
