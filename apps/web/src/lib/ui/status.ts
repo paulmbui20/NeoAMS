@@ -93,8 +93,13 @@ export const formatMoney = (cents: number, currency = "KES"): string =>
   new Intl.NumberFormat("en-KE", {
     style: "currency",
     currency,
-    maximumFractionDigits: 0,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
   }).format(cents / 100);
+
+export const centsToShillings = (cents: number): number => cents / 100;
+export const shillingsToCents = (shillings: number): number =>
+  Math.round(shillings * 100);
 
 /** A date, in the way a calendar writes it. */
 export const formatDate = (value: string | Date | null | undefined): string => {

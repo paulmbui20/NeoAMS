@@ -22,10 +22,12 @@
   import Modal from "$lib/components/ui/Modal.svelte";
   import { toast } from "$lib/components/ui/toast.svelte";
   import {
+    centsToShillings,
     formatDate,
     formatMoney,
     paymentLabel,
     paymentTone,
+    shillingsToCents,
   } from "$lib/ui/status";
   import { createDraft } from "$lib/utils/draft";
   import {
@@ -90,7 +92,7 @@
   type ExpenseDraft = {
     categoryId: string;
     description: string;
-    amountCents: number;
+    amountShillings: number;
     paymentMethod: string;
     reference: string;
     expenseDate: string;
@@ -124,7 +126,7 @@
   let expenseForm = $state<ExpenseDraft>({
     categoryId: "",
     description: "",
-    amountCents: 100000,
+    amountShillings: 1000,
     paymentMethod: "mpesa",
     reference: "",
     expenseDate: todayString,
@@ -139,7 +141,7 @@
   let editExpenseForm = $state({
     categoryId: "",
     description: "",
-    amountCents: 0,
+    amountShillings: 0,
     paymentMethod: "mpesa",
     reference: "",
     expenseDate: todayString,
@@ -154,7 +156,7 @@
   // Process Refund Modal state
   let refundingPayment = $state<Payment | null>(null);
   let refundForm = $state({
-    amountCents: 0,
+    amountShillings: 0,
     paymentMethod: "mpesa",
     reason: "",
     transactionReferenceCode: "",
@@ -259,13 +261,22 @@
     void loadCategories();
     const saved = expenseDraft.load();
     if (saved) {
-      expenseForm = saved;
+      const oldAmountCents = (saved as ExpenseDraft & { amountCents?: number })
+        .amountCents;
+      expenseForm = {
+        ...saved,
+        amountShillings:
+          Number.isFinite(saved.amountShillings) &&
+          saved.amountShillings !== undefined
+            ? saved.amountShillings
+            : centsToShillings(oldAmountCents ?? 100000),
+      };
       hasRestoredExpenseDraft = true;
     } else {
       expenseForm = {
         categoryId: expenseCategories[0] ? String(expenseCategories[0].id) : "",
         description: "",
-        amountCents: 100000,
+        amountShillings: 1000,
         paymentMethod: "mpesa",
         reference: "",
         expenseDate: todayString,
@@ -287,7 +298,7 @@
     expenseForm = {
       categoryId: expenseCategories[0] ? String(expenseCategories[0].id) : "",
       description: "",
-      amountCents: 100000,
+      amountShillings: 1000,
       paymentMethod: "mpesa",
       reference: "",
       expenseDate: todayString,
@@ -300,9 +311,15 @@
     if (!expenseForm.categoryId) errs.categoryId = "Please select a category";
     if (!expenseForm.description.trim())
       errs.description = "Description is required";
-    if (!expenseForm.amountCents || expenseForm.amountCents <= 0) {
+    const amountCents = shillingsToCents(expenseForm.amountShillings);
+    if (
+      !Number.isFinite(expenseForm.amountShillings) ||
+      amountCents <= 0 ||
+      amountCents > 100_000_000
+    ) {
       errs.amountCents = "Please enter a valid amount";
     }
+    if (!expenseForm.expenseDate) errs.expenseDate = "Date is required";
     if (Object.keys(errs).length > 0) {
       expenseErrors = errs;
       return;
@@ -316,7 +333,7 @@
       await api.post(`/properties/${propertyId}/expenses`, {
         categoryId: Number(expenseForm.categoryId),
         description: expenseForm.description.trim(),
-        amountCents: expenseForm.amountCents,
+        amountCents,
         paymentMethod: expenseForm.paymentMethod || undefined,
         reference: expenseForm.reference.trim() || undefined,
         expenseDate: expenseForm.expenseDate,
@@ -326,7 +343,7 @@
       expenseDraft.clear();
       toast.success(
         "Expense recorded",
-        `${formatMoney(expenseForm.amountCents)} for ${expenseForm.description}`,
+        `${formatMoney(amountCents)} for ${expenseForm.description}`,
       );
       addingExpense = false;
       await load();
@@ -345,7 +362,7 @@
     editExpenseForm = {
       categoryId: String(e.categoryId),
       description: e.description,
-      amountCents: e.amountCents,
+      amountShillings: centsToShillings(e.amountCents),
       paymentMethod: e.paymentMethod ?? "mpesa",
       reference: e.reference ?? "",
       expenseDate: e.expenseDate,
@@ -361,6 +378,19 @@
     const propertyId = workspace.currentId;
     if (propertyId === null) return;
 
+    const amountCents = shillingsToCents(editExpenseForm.amountShillings);
+    if (
+      !editExpenseForm.categoryId ||
+      !editExpenseForm.description.trim() ||
+      !editExpenseForm.expenseDate ||
+      !Number.isFinite(editExpenseForm.amountShillings) ||
+      amountCents <= 0 ||
+      amountCents > 100_000_000
+    ) {
+      toast.error("Please complete all required fields with a valid amount.");
+      return;
+    }
+
     editExpenseBusy = true;
     try {
       await api.patch(
@@ -368,7 +398,7 @@
         {
           categoryId: Number(editExpenseForm.categoryId),
           description: editExpenseForm.description.trim(),
-          amountCents: editExpenseForm.amountCents,
+          amountCents,
           paymentMethod: editExpenseForm.paymentMethod || undefined,
           reference: editExpenseForm.reference.trim() || undefined,
           expenseDate: editExpenseForm.expenseDate,
@@ -418,7 +448,7 @@
   function openRefund(p: Payment) {
     refundingPayment = p;
     refundForm = {
-      amountCents: p.amountCents,
+      amountShillings: centsToShillings(p.amountCents),
       paymentMethod: p.paymentMethod ?? "mpesa",
       reason: "",
       transactionReferenceCode: "",
@@ -434,8 +464,15 @@
     const propertyId = workspace.currentId;
     if (propertyId === null) return;
 
-    if (!refundForm.reason.trim()) {
-      toast.error("Please provide a reason for the refund");
+    const amountCents = shillingsToCents(refundForm.amountShillings);
+    if (
+      !refundForm.reason.trim() ||
+      !Number.isFinite(refundForm.amountShillings) ||
+      amountCents <= 0 ||
+      amountCents > refundingPayment.amountCents ||
+      amountCents > 100_000_000
+    ) {
+      toast.error("Enter a valid refund amount and reason.");
       return;
     }
 
@@ -444,7 +481,7 @@
       await api.post(
         `/properties/${propertyId}/payments/${refundingPayment.id}/refund`,
         {
-          amountCents: refundForm.amountCents,
+          amountCents,
           paymentMethod: refundForm.paymentMethod,
           reason: refundForm.reason.trim(),
           transactionReferenceCode:
@@ -453,7 +490,7 @@
       );
       toast.success(
         "Refund processed",
-        `${formatMoney(refundForm.amountCents)} for ${refundingPayment.bookingReference}`,
+        `${formatMoney(amountCents)} for ${refundingPayment.bookingReference}`,
       );
       closeRefund();
       await load();
@@ -605,7 +642,7 @@
                   title={`${row.period}: ${formatMoney(row.totalCents)}`}
                 ></div>
                 <span class="truncate text-2xs text-ink-muted">
-                  {row.period.slice(8)}
+                  {row.period?.slice(8) ?? "—"}
                 </span>
               </div>
             {/each}
@@ -863,9 +900,13 @@
           {id}
           {describedBy}
           bind:value={expenseForm.categoryId}
+          required
           options={[
             { value: "", label: "Select category…" },
-            ...expenseCategories.map((c) => ({ value: String(c.id), label: c.name })),
+            ...expenseCategories.map((c) => ({
+              value: String(c.id),
+              label: c.name,
+            })),
           ]}
           onchange={saveExpenseProgress}
         />
@@ -878,6 +919,7 @@
           {id}
           {describedBy}
           bind:value={expenseForm.description}
+          required
           placeholder="e.g. Fresh produce, electricity bill, laundry detergent"
           error={invalid ? expenseErrors.description : null}
           oninput={saveExpenseProgress}
@@ -887,8 +929,8 @@
 
     <div class="grid gap-3 sm:grid-cols-2">
       <Field
-        label="Amount (Cents)"
-        hint="e.g. 150000 = 1,500 KES"
+        label="Amount (KES)"
+        hint="Enter the amount in shillings."
         error={expenseErrors.amountCents}
         required
       >
@@ -897,8 +939,11 @@
             {id}
             {describedBy}
             type="number"
-            min="1"
-            bind:value={expenseForm.amountCents}
+            min="0.01"
+            max="1000000"
+            step="0.01"
+            required
+            bind:value={expenseForm.amountShillings}
             error={invalid ? expenseErrors.amountCents : null}
             oninput={saveExpenseProgress}
           />
@@ -917,12 +962,13 @@
         {/snippet}
       </Field>
 
-      <Field label="Expense Date" required>
+      <Field label="Expense Date" error={expenseErrors.expenseDate} required>
         {#snippet children({ id, describedBy })}
           <Input
             {id}
             {describedBy}
             type="date"
+            required
             bind:value={expenseForm.expenseDate}
             oninput={saveExpenseProgress}
           />
@@ -990,6 +1036,7 @@
             {id}
             {describedBy}
             bind:value={editExpenseForm.categoryId}
+            required
             options={expenseCategories.map((c) => ({
               value: String(c.id),
               label: c.name,
@@ -1000,19 +1047,27 @@
 
       <Field label="Description" required>
         {#snippet children({ id, describedBy })}
-          <Input {id} {describedBy} bind:value={editExpenseForm.description} />
+          <Input
+            {id}
+            {describedBy}
+            bind:value={editExpenseForm.description}
+            required
+          />
         {/snippet}
       </Field>
 
       <div class="grid gap-3 sm:grid-cols-2">
-        <Field label="Amount (Cents)" required>
+        <Field label="Amount (KES)" required>
           {#snippet children({ id, describedBy })}
             <Input
               {id}
               {describedBy}
               type="number"
-              min="1"
-              bind:value={editExpenseForm.amountCents}
+              min="0.01"
+              max="1000000"
+              step="0.01"
+              required
+              bind:value={editExpenseForm.amountShillings}
             />
           {/snippet}
         </Field>
@@ -1034,6 +1089,7 @@
               {id}
               {describedBy}
               type="date"
+              required
               bind:value={editExpenseForm.expenseDate}
             />
           {/snippet}
@@ -1137,15 +1193,17 @@
         </p>
       </div>
 
-      <Field label="Refund Amount (Cents)" required>
+      <Field label="Refund Amount (KES)" required>
         {#snippet children({ id, describedBy })}
           <Input
             {id}
             {describedBy}
             type="number"
-            min="1"
-            max={refundingPayment?.amountCents ?? 0}
-            bind:value={refundForm.amountCents}
+            min="0.01"
+            max={centsToShillings(refundingPayment?.amountCents ?? 0)}
+            step="0.01"
+            required
+            bind:value={refundForm.amountShillings}
           />
         {/snippet}
       </Field>
@@ -1167,6 +1225,7 @@
             {id}
             {describedBy}
             bind:value={refundForm.reason}
+            required
             placeholder="Cancellation, room change, overpayment…"
           />
         {/snippet}

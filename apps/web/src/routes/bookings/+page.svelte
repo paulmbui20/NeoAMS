@@ -26,8 +26,10 @@
   import {
     bookingLabel,
     bookingTone,
+    centsToShillings,
     formatDate,
     formatMoney,
+    shillingsToCents,
   } from "$lib/ui/status";
   import { createDraft } from "$lib/utils/draft";
   import {
@@ -122,11 +124,9 @@
 
   const sourceOptions = [
     { value: "walk_in", label: "Walk in" },
-    { value: "desk", label: "Desk reservation" },
     { value: "phone", label: "Phone call" },
-    { value: "email", label: "Email" },
-    { value: "booking_com", label: "Booking.com" },
-    { value: "airbnb", label: "Airbnb" },
+    { value: "website", label: "Website" },
+    { value: "social_media", label: "Social Media" },
     { value: "other", label: "Other" },
   ];
 
@@ -174,7 +174,7 @@
     checkOutDate: getTodayString(1),
     adults: 1,
     children: 0,
-    source: "desk",
+    source: "other",
     specialRequests: "",
   });
 
@@ -184,7 +184,7 @@
     adults: 1,
     children: 0,
     specialRequests: "",
-    depositRequiredCents: 0,
+    depositRequiredShillings: 0,
   });
   let editBusy = $state(false);
 
@@ -192,7 +192,7 @@
   let payingBooking = $state<Booking | null>(null);
   let paymentForm = $state({
     type: "payment",
-    amountCents: 0,
+    amountShillings: 0,
     paymentMethod: "mpesa",
     transactionReferenceCode: "",
   });
@@ -269,7 +269,12 @@
 
     const saved = bookingDraft.load();
     if (saved) {
-      bookingForm = saved;
+      bookingForm = {
+        ...saved,
+        source: sourceOptions.some((option) => option.value === saved.source)
+          ? saved.source
+          : "other",
+      };
       bookingStep = saved.step || 1;
       hasRestoredDraft = true;
     } else {
@@ -288,7 +293,7 @@
         checkOutDate: getTodayString(1),
         adults: 1,
         children: 0,
-        source: "desk",
+        source: "other",
         specialRequests: "",
       };
       bookingStep = 1;
@@ -323,7 +328,7 @@
       checkOutDate: getTodayString(1),
       adults: 1,
       children: 0,
-      source: "desk",
+      source: "other",
       specialRequests: "",
     };
     bookingStep = 1;
@@ -363,8 +368,16 @@
     } else if (bookingForm.checkOutDate <= bookingForm.checkInDate) {
       errs.checkOutDate = "Check-out must be after check-in";
     }
-    if (bookingForm.adults < 1) {
+    if (
+      !Number.isInteger(bookingForm.adults) ||
+      bookingForm.adults < 1 ||
+      bookingForm.adults > 20
+    ) {
       errs.adults = "At least 1 adult required";
+    }
+    const children = bookingForm.children ?? 0;
+    if (!Number.isInteger(children) || children < 0 || children > 20) {
+      errs.children = "Children must be between 0 and 20";
     }
     bookingErrors = errs;
     return Object.keys(errs).length === 0;
@@ -397,7 +410,7 @@
       const payload: Record<string, unknown> = {
         roomId: bookingForm.roomId,
         stay: {
-          rateType: bookingForm.rateType,
+          type: bookingForm.rateType,
           checkInDate: bookingForm.checkInDate,
           checkOutDate: bookingForm.checkOutDate,
         },
@@ -440,7 +453,7 @@
       adults: b.adults ?? 1,
       children: b.children ?? 0,
       specialRequests: b.specialRequests ?? "",
-      depositRequiredCents: b.depositRequiredCents,
+      depositRequiredShillings: centsToShillings(b.depositRequiredCents),
     };
   }
 
@@ -452,6 +465,16 @@
     if (!editingBooking) return;
     const propertyId = workspace.currentId;
     if (propertyId === null) return;
+    const depositShillings = editForm.depositRequiredShillings ?? 0;
+    const depositRequiredCents = shillingsToCents(depositShillings);
+    if (
+      !Number.isFinite(depositShillings) ||
+      depositRequiredCents < 0 ||
+      depositRequiredCents > 100_000_000
+    ) {
+      toast.error("Please enter a valid deposit amount.");
+      return;
+    }
 
     editBusy = true;
     try {
@@ -461,7 +484,7 @@
           adults: editForm.adults,
           children: editForm.children,
           specialRequests: editForm.specialRequests.trim() || undefined,
-          depositRequiredCents: editForm.depositRequiredCents,
+          depositRequiredCents,
         },
       );
 
@@ -505,7 +528,7 @@
     payingBooking = b;
     paymentForm = {
       type: "payment",
-      amountCents: Math.max(10000, b.totalCostCents),
+      amountShillings: centsToShillings(Math.max(10000, b.totalCostCents)),
       paymentMethod: "mpesa",
       transactionReferenceCode: "",
     };
@@ -520,7 +543,12 @@
     const propertyId = workspace.currentId;
     if (propertyId === null) return;
 
-    if (paymentForm.amountCents <= 0) {
+    const amountCents = shillingsToCents(paymentForm.amountShillings);
+    if (
+      !Number.isFinite(paymentForm.amountShillings) ||
+      amountCents <= 0 ||
+      amountCents > 100_000_000
+    ) {
       toast.error("Please enter a valid amount");
       return;
     }
@@ -531,7 +559,7 @@
         `/properties/${propertyId}/bookings/${payingBooking.id}/payments`,
         {
           type: paymentForm.type,
-          amountCents: paymentForm.amountCents,
+          amountCents,
           paymentMethod: paymentForm.paymentMethod,
           transactionReferenceCode:
             paymentForm.transactionReferenceCode.trim() || undefined,
@@ -540,7 +568,7 @@
 
       toast.success(
         "Payment recorded",
-        `${formatMoney(paymentForm.amountCents)} received for ${payingBooking.reference}.`,
+        `${formatMoney(amountCents)} received for ${payingBooking.reference}.`,
       );
       closeRecordPayment();
       await load();
@@ -1091,8 +1119,8 @@
           {/snippet}
         </Field>
 
-        <Field label="Children">
-          {#snippet children({ id, describedBy })}
+        <Field label="Children" error={bookingErrors.children}>
+          {#snippet children({ id, describedBy, invalid })}
             <Input
               {id}
               {describedBy}
@@ -1100,6 +1128,7 @@
               min="0"
               max="20"
               bind:value={bookingForm.children}
+              error={invalid ? bookingErrors.children : null}
               oninput={saveBookingProgress}
             />
           {/snippet}
@@ -1272,6 +1301,7 @@
               type="number"
               min="1"
               max="20"
+              required
               bind:value={editForm.adults}
             />
           {/snippet}
@@ -1291,14 +1321,16 @@
         </Field>
       </div>
 
-      <Field label="Deposit Required (Cents)">
+      <Field label="Deposit Required (KES)">
         {#snippet children({ id, describedBy })}
           <Input
             {id}
             {describedBy}
             type="number"
             min="0"
-            bind:value={editForm.depositRequiredCents}
+            step="0.01"
+            max="1000000"
+            bind:value={editForm.depositRequiredShillings}
           />
         {/snippet}
       </Field>
@@ -1368,14 +1400,17 @@
         {/snippet}
       </Field>
 
-      <Field label="Amount (Cents)" hint="e.g. 500000 for 5,000 KES" required>
+      <Field label="Amount (KES)" required>
         {#snippet children({ id, describedBy })}
           <Input
             {id}
             {describedBy}
             type="number"
-            min="1"
-            bind:value={paymentForm.amountCents}
+            min="0.01"
+            max="1000000"
+            step="0.01"
+            required
+            bind:value={paymentForm.amountShillings}
           />
         {/snippet}
       </Field>

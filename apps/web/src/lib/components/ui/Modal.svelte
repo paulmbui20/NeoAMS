@@ -45,7 +45,9 @@
   });
 
   onDestroy(() => {
-    document.removeEventListener("keydown", handleKeydown);
+    if (typeof document !== "undefined") {
+      document.removeEventListener("keydown", handleKeydown);
+    }
   });
 </script>
 

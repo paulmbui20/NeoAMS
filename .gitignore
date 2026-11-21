@@ -12,6 +12,8 @@ coverage
 
 # logs
 logs
+!apps/web/src/routes/logs/
+!apps/web/src/routes/logs/**
 _.log
 report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 

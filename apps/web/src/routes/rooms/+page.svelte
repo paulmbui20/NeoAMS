@@ -21,7 +21,13 @@
   import Select from "$lib/components/ui/Select.svelte";
   import Modal from "$lib/components/ui/Modal.svelte";
   import { toast } from "$lib/components/ui/toast.svelte";
-  import { formatMoney, roomLabel, roomTone } from "$lib/ui/status";
+  import {
+    centsToShillings,
+    formatMoney,
+    roomLabel,
+    roomTone,
+    shillingsToCents,
+  } from "$lib/ui/status";
   import { createDraft } from "$lib/utils/draft";
   import {
     Plus,
@@ -132,8 +138,8 @@
   let roomTypeForm = $state({
     name: "",
     description: "",
-    pricePerNightCents: 500000,
-    pricePerHourCents: 100000,
+    pricePerNightShillings: 5000,
+    pricePerHourShillings: 1000,
     maxOccupancy: 2,
     bedConfiguration: "",
     isActive: true,
@@ -237,7 +243,10 @@
 
   function validateRoomStep1(): boolean {
     const errs: Record<string, string> = {};
-    if (!roomForm.roomTypeId) errs.roomTypeId = "Please select a room type";
+    const roomTypeId = Number(roomForm.roomTypeId);
+    if (!Number.isSafeInteger(roomTypeId) || roomTypeId < 1) {
+      errs.roomTypeId = "Please select a room type";
+    }
     if (!roomForm.roomNumber.trim())
       errs.roomNumber = "Room number is required";
     roomErrors = errs;
@@ -310,8 +319,20 @@
     const propertyId = workspace.currentId;
     if (propertyId === null) return;
 
-    if (!editRoomForm.roomNumber.trim()) {
-      editRoomErrors = { roomNumber: "Room number is required" };
+    const roomTypeId = Number(editRoomForm.roomTypeId);
+    if (
+      !editRoomForm.roomNumber.trim() ||
+      !Number.isSafeInteger(roomTypeId) ||
+      roomTypeId < 1
+    ) {
+      editRoomErrors = {
+        ...(!editRoomForm.roomNumber.trim()
+          ? { roomNumber: "Room number is required" }
+          : {}),
+        ...(!Number.isSafeInteger(roomTypeId) || roomTypeId < 1
+          ? { roomTypeId: "Please select a room type" }
+          : {}),
+      };
       return;
     }
 
@@ -320,7 +341,7 @@
       await api.patch(`/properties/${propertyId}/rooms/${editingRoom.id}`, {
         roomNumber: editRoomForm.roomNumber.trim(),
         floor: editRoomForm.floor.trim() || undefined,
-        roomTypeId: Number(editRoomForm.roomTypeId),
+        roomTypeId,
         description: editRoomForm.description.trim() || undefined,
         isActive: editRoomForm.isActive,
       });
@@ -344,8 +365,8 @@
     roomTypeForm = {
       name: "",
       description: "",
-      pricePerNightCents: 500000,
-      pricePerHourCents: 100000,
+      pricePerNightShillings: 5000,
+      pricePerHourShillings: 1000,
       maxOccupancy: 2,
       bedConfiguration: "1 King Bed",
       isActive: true,
@@ -359,8 +380,8 @@
     roomTypeForm = {
       name: type.name,
       description: type.description ?? "",
-      pricePerNightCents: type.pricePerNightCents,
-      pricePerHourCents: type.pricePerHourCents ?? 0,
+      pricePerNightShillings: centsToShillings(type.pricePerNightCents),
+      pricePerHourShillings: centsToShillings(type.pricePerHourCents ?? 0),
       maxOccupancy: type.maxOccupancy,
       bedConfiguration: type.bedConfiguration ?? "",
       isActive: type.isActive,
@@ -376,8 +397,37 @@
   }
 
   async function submitRoomType() {
-    if (!roomTypeForm.name.trim()) {
-      roomTypeErrors = { name: "Name is required" };
+    const pricePerHourShillings = roomTypeForm.pricePerHourShillings ?? 0;
+    const pricePerNightCents = shillingsToCents(
+      roomTypeForm.pricePerNightShillings,
+    );
+    const pricePerHourCents = shillingsToCents(pricePerHourShillings);
+    const maxOccupancy = roomTypeForm.maxOccupancy ?? 2;
+    const errors: Record<string, string> = {};
+    if (!roomTypeForm.name.trim()) errors.name = "Name is required";
+    if (
+      !Number.isFinite(roomTypeForm.pricePerNightShillings) ||
+      pricePerNightCents < 0 ||
+      pricePerNightCents > 100_000_000
+    ) {
+      errors.pricePerNight = "Enter a valid nightly price";
+    }
+    if (
+      !Number.isFinite(pricePerHourShillings) ||
+      pricePerHourCents < 0 ||
+      pricePerHourCents > 100_000_000
+    ) {
+      errors.pricePerHour = "Enter a valid hourly price";
+    }
+    if (
+      !Number.isInteger(maxOccupancy) ||
+      maxOccupancy < 1 ||
+      maxOccupancy > 20
+    ) {
+      errors.maxOccupancy = "Occupancy must be between 1 and 20";
+    }
+    if (Object.keys(errors).length > 0) {
+      roomTypeErrors = errors;
       return;
     }
     const propertyId = workspace.currentId;
@@ -388,12 +438,10 @@
       const payload = {
         name: roomTypeForm.name.trim(),
         description: roomTypeForm.description.trim() || undefined,
-        pricePerNightCents: roomTypeForm.pricePerNightCents,
+        pricePerNightCents,
         pricePerHourCents:
-          roomTypeForm.pricePerHourCents > 0
-            ? roomTypeForm.pricePerHourCents
-            : undefined,
-        maxOccupancy: roomTypeForm.maxOccupancy,
+          pricePerHourCents > 0 ? pricePerHourCents : undefined,
+        maxOccupancy,
         bedConfiguration: roomTypeForm.bedConfiguration.trim() || undefined,
         isActive: roomTypeForm.isActive,
       };
@@ -670,10 +718,12 @@
       </p>
 
       <Field label="Room Category" error={roomErrors.roomTypeId} required>
-        {#snippet children({ id, describedBy })}
+        {#snippet children({ id, describedBy, invalid })}
           <Select
             {id}
             {describedBy}
+            required
+            error={invalid ? roomErrors.roomTypeId : null}
             bind:value={roomForm.roomTypeId}
             options={[
               { value: "", label: "Select a category…" },
@@ -689,6 +739,7 @@
           <Input
             {id}
             {describedBy}
+            required
             bind:value={roomForm.roomNumber}
             placeholder="e.g. 101, 204B"
             error={invalid ? roomErrors.roomNumber : null}
@@ -792,19 +843,25 @@
           <Input
             {id}
             {describedBy}
+            required
             bind:value={editRoomForm.roomNumber}
             error={invalid ? editRoomErrors.roomNumber : null}
           />
         {/snippet}
       </Field>
 
-      <Field label="Room Category" required>
-        {#snippet children({ id, describedBy })}
+      <Field label="Room Category" error={editRoomErrors.roomTypeId} required>
+        {#snippet children({ id, describedBy, invalid })}
           <Select
             {id}
             {describedBy}
+            required
+            error={invalid ? editRoomErrors.roomTypeId : null}
             bind:value={editRoomForm.roomTypeId}
-            options={roomTypes.map((t) => ({ value: String(t.id), label: t.name }))}
+            options={roomTypes.map((t) => ({
+              value: String(t.id),
+              label: t.name,
+            }))}
           />
         {/snippet}
       </Field>
@@ -877,35 +934,47 @@
     </div>
 
     <Field
-      label="Price per Night (Cents)"
-      hint="e.g. 850000 = 8,500 KES"
+      label="Price per Night (KES)"
+      hint="Enter the nightly price in shillings."
+      error={roomTypeErrors.pricePerNight}
       required
     >
-      {#snippet children({ id, describedBy })}
+      {#snippet children({ id, describedBy, invalid })}
         <Input
           {id}
           {describedBy}
           type="number"
           min="0"
-          bind:value={roomTypeForm.pricePerNightCents}
+          max="1000000"
+          step="0.01"
+          required
+          bind:value={roomTypeForm.pricePerNightShillings}
+          error={invalid ? roomTypeErrors.pricePerNight : null}
         />
       {/snippet}
     </Field>
 
-    <Field label="Price per Hour (Cents)" hint="Optional (e.g. day use)">
-      {#snippet children({ id, describedBy })}
+    <Field
+      label="Price per Hour (KES)"
+      hint="Optional (e.g. day use). Enter the price in shillings."
+      error={roomTypeErrors.pricePerHour}
+    >
+      {#snippet children({ id, describedBy, invalid })}
         <Input
           {id}
           {describedBy}
           type="number"
           min="0"
-          bind:value={roomTypeForm.pricePerHourCents}
+          max="1000000"
+          step="0.01"
+          bind:value={roomTypeForm.pricePerHourShillings}
+          error={invalid ? roomTypeErrors.pricePerHour : null}
         />
       {/snippet}
     </Field>
 
-    <Field label="Max Occupancy (Guests)">
-      {#snippet children({ id, describedBy })}
+    <Field label="Max Occupancy (Guests)" error={roomTypeErrors.maxOccupancy}>
+      {#snippet children({ id, describedBy, invalid })}
         <Input
           {id}
           {describedBy}
@@ -913,6 +982,7 @@
           min="1"
           max="20"
           bind:value={roomTypeForm.maxOccupancy}
+          error={invalid ? roomTypeErrors.maxOccupancy : null}
         />
       {/snippet}
     </Field>

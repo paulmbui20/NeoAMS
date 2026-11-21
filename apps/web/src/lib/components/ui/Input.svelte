@@ -25,7 +25,7 @@
   } & Omit<HTMLInputAttributes, "class" | "value" | "type">;
 
   let {
-    value = $bindable(""),
+    value = $bindable(),
     type = "text",
     name,
     placeholder,
