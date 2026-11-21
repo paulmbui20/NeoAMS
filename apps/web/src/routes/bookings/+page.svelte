@@ -54,6 +54,7 @@
     checkInDate: string;
     checkOutDate: string;
     totalCostCents: number;
+    balanceCents: number;
     depositRequiredCents: number;
     source: string;
     roomId: number;
@@ -528,7 +529,7 @@
     payingBooking = b;
     paymentForm = {
       type: "payment",
-      amountShillings: centsToShillings(Math.max(10000, b.totalCostCents)),
+      amountShillings: centsToShillings(Math.max(0, b.balanceCents)),
       paymentMethod: "mpesa",
       transactionReferenceCode: "",
     };
@@ -547,9 +548,14 @@
     if (
       !Number.isFinite(paymentForm.amountShillings) ||
       amountCents <= 0 ||
+      amountCents > payingBooking.balanceCents ||
       amountCents > 100_000_000
     ) {
-      toast.error("Please enter a valid amount");
+      toast.error(
+        amountCents > payingBooking.balanceCents
+          ? `The remaining balance is ${formatMoney(payingBooking.balanceCents)}.`
+          : "Please enter a valid amount",
+      );
       return;
     }
 
@@ -765,15 +771,17 @@
                 </td>
                 <td class="px-4 py-3 text-right">
                   <div class="flex justify-end items-center gap-1.5">
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      onclick={() => openRecordPayment(booking)}
-                      title="Record payment"
-                    >
-                      <CreditCard class="size-3.5 mr-1" />
-                      Pay
-                    </Button>
+                    {#if booking.balanceCents > 0}
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onclick={() => openRecordPayment(booking)}
+                        title="Record payment"
+                      >
+                        <CreditCard class="size-3.5 mr-1" />
+                        Pay
+                      </Button>
+                    {/if}
                     <Button
                       size="sm"
                       variant="secondary"
@@ -1384,6 +1392,9 @@
         <p class="text-ink-muted mt-0.5">
           Total reservation cost: {formatMoney(payingBooking.totalCostCents)}
         </p>
+        <p class="text-ink-muted mt-0.5">
+          Remaining balance: {formatMoney(payingBooking.balanceCents)}
+        </p>
       </div>
 
       <Field label="Payment Type" required>
@@ -1407,7 +1418,7 @@
             {describedBy}
             type="number"
             min="0.01"
-            max="1000000"
+            max={centsToShillings(payingBooking?.balanceCents ?? 0)}
             step="0.01"
             required
             bind:value={paymentForm.amountShillings}

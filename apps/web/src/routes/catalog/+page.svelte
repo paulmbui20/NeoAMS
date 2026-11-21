@@ -14,7 +14,12 @@
   import Input from "$lib/components/ui/Input.svelte";
   import Modal from "$lib/components/ui/Modal.svelte";
   import ImageGallery from "$lib/components/catalog/ImageGallery.svelte";
+  import AmenityIcon from "$lib/components/catalog/AmenityIcon.svelte";
   import { toast } from "$lib/components/ui/toast.svelte";
+  import {
+    amenityIconNames,
+    normalizeLucideIconName,
+  } from "$lib/utils/lucide-icons";
   import {
     centsToShillings,
     formatMoney,
@@ -74,6 +79,9 @@
   let amenityModalOpen = $state(false);
   let editingAmenityId = $state<number | null>(null);
   let amenityForm = $state({ name: "", icon: "" });
+  let normalizedAmenityIcon = $derived(
+    normalizeLucideIconName(amenityForm.icon),
+  );
   let imageModalOpen = $state(false);
   let imageTarget = $state<ImageTarget | null>(null);
   let imageFile = $state<File | null>(null);
@@ -238,13 +246,17 @@
       toast.error("Amenity name is required.");
       return;
     }
+    const enteredIcon = amenityForm.icon.trim();
+    const icon = enteredIcon ? normalizedAmenityIcon : null;
+    if (enteredIcon && !icon) {
+      toast.error("Enter a supported Lucide amenity icon name.");
+      return;
+    }
     saving = true;
     try {
       const payload = {
         name,
-        icon:
-          amenityForm.icon.trim() ||
-          (editingAmenityId !== null ? null : undefined),
+        icon: icon ?? (editingAmenityId !== null ? null : undefined),
       };
       const propertyId = workspace.currentId;
       if (propertyId === null) return;
@@ -578,6 +590,10 @@
                       );
                     }}
                   />
+                  <AmenityIcon
+                    name={amenity.icon}
+                    class="size-4 shrink-0 text-ink-muted"
+                  />
                   <span class="min-w-0 truncate">{amenity.name}</span>
                 </label>
                 <div class="flex shrink-0 gap-1">
@@ -627,6 +643,10 @@
                           amenity.id,
                           event.currentTarget.checked,
                         )}
+                    />
+                    <AmenityIcon
+                      name={amenity.icon}
+                      class="size-4 shrink-0 text-ink-muted"
                     />
                     {amenity.name}
                   </label>
@@ -761,10 +781,28 @@
           {id}
           {describedBy}
           bind:value={amenityForm.icon}
-          placeholder="e.g. wifi"
+          placeholder="e.g. Wifi or wifi-off"
         />
       {/snippet}
     </Field>
+    <p class="text-xs text-ink-muted">
+      Available: {amenityIconNames.join(", ")}
+    </p>
+    <div class="flex min-h-9 items-center gap-2 text-sm">
+      {#if normalizedAmenityIcon}
+        <AmenityIcon
+          name={normalizedAmenityIcon}
+          class="size-4 text-ink-muted"
+        />
+        <span class="text-ink-muted">{normalizedAmenityIcon} preview</span>
+      {:else if amenityForm.icon.trim()}
+        <span class="text-error">
+          This Lucide icon isn't supported for amenities.
+        </span>
+      {:else}
+        <span class="text-ink-muted">Leave blank to use no icon.</span>
+      {/if}
+    </div>
   </div>
   {#snippet footer()}
     <div class="flex justify-end gap-2">

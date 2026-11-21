@@ -541,6 +541,24 @@ export const createBookingService = ({
           checkInDate: bookings.checkInDate,
           checkOutDate: bookings.checkOutDate,
           totalCostCents: bookings.totalCostCents,
+          balanceCents: sql<number>`
+            ${bookings.totalCostCents}
+            + coalesce((
+              select sum(service_bookings.subtotal_cents)
+              from service_bookings
+              where service_bookings.booking_id = ${bookings.id}
+            ), 0)
+            - coalesce((
+              select sum(case
+                when payments.type in ('deposit', 'payment') then payments.amount_cents
+                when payments.type = 'refund' then -payments.amount_cents
+                else 0
+              end)
+              from payments
+              where payments.booking_id = ${bookings.id}
+                and payments.status = 'succeeded'
+            ), 0)
+          `,
           depositRequiredCents: bookings.depositRequiredCents,
           source: bookings.source,
           roomId: rooms.id,

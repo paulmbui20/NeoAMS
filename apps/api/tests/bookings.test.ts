@@ -475,6 +475,31 @@ describe("desk bookings", () => {
     expect(res.json().meta.total).toBeGreaterThanOrEqual(3);
   });
 
+  it("reports zero remaining balance for a fully paid booking in the list", async () => {
+    const guestId = await newGuest("Pia", "Paid", "+254700000114");
+    const booking = await newBooking(guestId, "2031-02-01", "2031-02-03");
+    const payment = await ctx.app.inject({
+      method: "POST",
+      url: `/api/v1/properties/${propertyId}/bookings/${booking.booking.id}/payments`,
+      headers: { cookie, "content-type": "application/json" },
+      payload: {
+        type: "payment",
+        amountCents: booking.booking.totalCostCents,
+        paymentMethod: "cash",
+      },
+    });
+    expect(payment.statusCode).toBe(201);
+
+    const listed = await ctx.app.inject({
+      method: "GET",
+      url: `/api/v1/properties/${propertyId}/bookings?q=${encodeURIComponent(booking.booking.bookingReferenceCode)}`,
+      headers: { cookie },
+    });
+    expect(listed.statusCode).toBe(200);
+    expect(listed.json().data).toHaveLength(1);
+    expect(listed.json().data[0].balanceCents).toBe(0);
+  });
+
   it("filters the list by status", async () => {
     const res = await ctx.app.inject({
       method: "GET",
