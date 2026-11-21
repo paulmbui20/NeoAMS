@@ -118,6 +118,12 @@ class SessionState {
     this.current = null;
     this.error = null;
   }
+
+  /** Sign out by calling the API. */
+  async signOut(): Promise<void> {
+    await api.post("/api/auth/sign-out", {});
+    this.current = null;
+  }
 }
 
 export const session = new SessionState();

@@ -1,0 +1,137 @@
+# NeoAMS — local development stack with Traefik.
+#
+#   docker compose -f docker-compose.local.yml up -d
+#
+# Uses local certificates generated with mkcert for neoams.local
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    restart: unless-stopped
+    environment:
+      DB_FILE_NAME: /data/neoams.sqlite
+      UPLOAD_DIR: /data/uploads
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:-dev-secret-change-in-production}
+      BETTER_AUTH_URL: https://neoams.test
+      FRONTEND_URL: https://neoams.test
+      PORT: "3000"
+      TRUST_PROXY: "true"
+      SETUP_TOKEN: ${SETUP_TOKEN:-}
+      RATE_LIMIT_ENABLED: ${RATE_LIMIT_ENABLED:-false}
+      RATE_LIMIT_SIGN_IN_MAX: ${RATE_LIMIT_SIGN_IN_MAX:-10}
+    volumes:
+      - neoams-data:/data
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=neoams-network"
+      - "traefik.http.routers.api.rule=PathPrefix(`/api/`) || PathPrefix(`/uploads/`) || PathPrefix(`/reference`)"
+      - "traefik.http.routers.api.service=api"
+      - "traefik.http.routers.api.entrypoints=websecure"
+      - "traefik.http.routers.api.tls=true"
+      - "traefik.http.routers.api.middlewares=api-headers"
+      - "traefik.http.services.api.loadbalancer.server.port=3000"
+      - "traefik.http.services.api.loadbalancer.passhostheader=true"
+      # Middleware for API headers
+      - "traefik.http.middlewares.api-headers.headers.customrequestheaders.X-Forwarded-Proto=https"
+      - "traefik.http.middlewares.api-headers.headers.customresponseheaders.X-Content-Type-Options=nosniff"
+      - "traefik.http.middlewares.api-headers.headers.customresponseheaders.X-Frame-Options=DENY"
+      - "traefik.http.middlewares.api-headers.headers.customresponseheaders.Referrer-Policy=strict-origin-when-cross-origin"
+    healthcheck:
+      test:
+        - CMD
+        - bun
+        - -e
+        - "fetch('http://127.0.0.1:3000/api/v1/setup/status').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    restart: unless-stopped
+    environment:
+      ORIGIN: https://neoams.local
+      PORT: "3000"
+      HOST: 0.0.0.0
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=neoams-network"
+      - "traefik.http.routers.web.rule=PathPrefix(`/`)"
+      - "traefik.http.routers.web.service=web"
+      - "traefik.http.routers.web.entrypoints=websecure"
+      - "traefik.http.routers.web.tls=true"
+      - "traefik.http.routers.web.middlewares=web-headers"
+      - "traefik.http.services.web.loadbalancer.server.port=3000"
+      - "traefik.http.services.web.loadbalancer.passhostheader=true"
+      # Middleware for web headers
+      - "traefik.http.middlewares.web-headers.headers.customrequestheaders.X-Forwarded-Proto=https"
+      - "traefik.http.middlewares.web-headers.headers.customresponseheaders.X-Content-Type-Options=nosniff"
+      - "traefik.http.middlewares.web-headers.headers.customresponseheaders.X-Frame-Options=DENY"
+      - "traefik.http.middlewares.web-headers.headers.customresponseheaders.Referrer-Policy=strict-origin-when-cross-origin"
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3000/').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  traefik:
+    image: traefik:v3.0
+    restart: unless-stopped
+    user: root
+    depends_on:
+      api:
+        condition: service_healthy
+      web:
+        condition: service_healthy
+    command:
+      - "--global.checkNewVersion=true"
+      - "--global.sendAnonymousUsage=false"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
+      - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
+      - "--entrypoints.web.http.redirections.entrypoint.permanent=true"
+      - "--entrypoints.websecure.address=:443"
+      - "--entrypoints.websecure.http.tls=true"
+      - "--providers.file.filename=/etc/traefik/traefik-dynamic-local.yml"
+      - "--providers.file.watch=true"
+      - "--api.dashboard=true"
+      - "--api.debug=true"
+      - "--api.insecure=true"
+      - "--log.level=DEBUG"
+      - "--log.format=json"
+      - "--accesslog=true"
+      - "--accesslog.format=json"
+      - "--accesslog.filepath=/var/log/traefik/access.log"
+    ports:
+      - "80:80"
+      - "443:443"
+      - "8080:8080" # Traefik dashboard
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./deploy/traefik-local.yml:/etc/traefik/traefik-local.yml:ro
+      - ./deploy/traefik-dynamic-local.yml:/etc/traefik/traefik-dynamic-local.yml:ro
+      - ./certs:/certs:ro
+      - traefik-logs:/var/log/traefik
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.traefik.rule=Host(`traefik.neoams.test`)"
+      - "traefik.http.routers.traefik.service=api@internal"
+      - "traefik.http.routers.traefik.entrypoints=websecure"
+
+volumes:
+  neoams-data:
+  traefik-logs:
+
+networks:
+  default:
+    name: neoams-network

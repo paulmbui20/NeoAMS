@@ -217,6 +217,34 @@ export const createGuestService = ({ db }: { db: Db }) => {
         .all();
       return { ...guest, bookings: history };
     },
+
+    update(id: number, patch: Partial<DeskGuestInput>) {
+      const existing = db.select().from(guests).where(eq(guests.id, id)).get();
+      if (!existing) throw new NotFoundError("Guest");
+      const values: Record<string, unknown> = {};
+      if (patch.firstName !== undefined) values.firstName = patch.firstName;
+      if (patch.middleName !== undefined)
+        values.middleName = patch.middleName || null;
+      if (patch.lastName !== undefined) values.lastName = patch.lastName;
+      if (patch.phone !== undefined) values.phone = normalizePhone(patch.phone);
+      if (patch.email !== undefined)
+        values.email = patch.email ? patch.email.toLowerCase() : null;
+      if (patch.country !== undefined) values.country = patch.country || null;
+      if (patch.nationality !== undefined)
+        values.nationality = patch.nationality || null;
+      if (patch.dateOfBirth !== undefined)
+        values.dateOfBirth = patch.dateOfBirth || null;
+      if (patch.gender !== undefined) values.gender = patch.gender || null;
+      if (patch.address !== undefined) values.address = patch.address || null;
+      if (patch.idType !== undefined) values.idType = patch.idType || null;
+      if (patch.idNumber !== undefined)
+        values.idNumber = patch.idNumber ? normalizeCode(patch.idNumber) : null;
+      if (patch.notes !== undefined) values.notes = patch.notes || null;
+      if (Object.keys(values).length > 0) {
+        db.update(guests).set(values).where(eq(guests.id, id)).run();
+      }
+      return this.get(id);
+    },
   };
 };
 export type GuestService = ReturnType<typeof createGuestService>;

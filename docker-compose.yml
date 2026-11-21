@@ -1,9 +1,9 @@
-# NeoAMS — production stack.
+# NeoAMS — production stack with Traefik.
 #
 #   cp .env.example .env      # then edit it
 #   docker compose up -d
 #
-# The API and the web app are behind one Caddy, so they share an origin and
+# The API and the web app are behind Traefik, so they share an origin and
 # the session cookie works without any cross-site allowances.
 
 services:
@@ -25,6 +25,21 @@ services:
       RATE_LIMIT_SIGN_IN_MAX: ${RATE_LIMIT_SIGN_IN_MAX:-10}
     volumes:
       - neoams-data:/data
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=neoams-network"
+      - "traefik.http.routers.api.rule=PathPrefix(`/api/`) || PathPrefix(`/uploads/`) || PathPrefix(`/reference`)"
+      - "traefik.http.routers.api.service=api"
+      - "traefik.http.routers.api.entrypoints=websecure"
+      - "traefik.http.routers.api.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.api.middlewares=api-headers"
+      - "traefik.http.services.api.loadbalancer.server.port=3000"
+      - "traefik.http.services.api.loadbalancer.passhostheader=true"
+      # Middleware for API headers
+      - "traefik.http.middlewares.api-headers.headers.customrequestheaders.X-Forwarded-Proto=https"
+      - "traefik.http.middlewares.api-headers.headers.customresponseheaders.X-Content-Type-Options=nosniff"
+      - "traefik.http.middlewares.api-headers.headers.customresponseheaders.X-Frame-Options=DENY"
+      - "traefik.http.middlewares.api-headers.headers.customresponseheaders.Referrer-Policy=strict-origin-when-cross-origin"
     healthcheck:
       test:
         - CMD
@@ -45,6 +60,21 @@ services:
       ORIGIN: ${PUBLIC_URL:?set PUBLIC_URL in .env}
       PORT: "3000"
       HOST: 0.0.0.0
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=neoams-network"
+      - "traefik.http.routers.web.rule=PathPrefix(`/`)"
+      - "traefik.http.routers.web.service=web"
+      - "traefik.http.routers.web.entrypoints=websecure"
+      - "traefik.http.routers.web.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.web.middlewares=web-headers"
+      - "traefik.http.services.web.loadbalancer.server.port=3000"
+      - "traefik.http.services.web.loadbalancer.passhostheader=true"
+      # Middleware for web headers
+      - "traefik.http.middlewares.web-headers.headers.customrequestheaders.X-Forwarded-Proto=https"
+      - "traefik.http.middlewares.web-headers.headers.customresponseheaders.X-Content-Type-Options=nosniff"
+      - "traefik.http.middlewares.web-headers.headers.customresponseheaders.X-Frame-Options=DENY"
+      - "traefik.http.middlewares.web-headers.headers.customresponseheaders.Referrer-Policy=strict-origin-when-cross-origin"
     healthcheck:
       test:
         - CMD
@@ -56,28 +86,60 @@ services:
       retries: 3
       start_period: 10s
 
-  caddy:
-    image: caddy:2-alpine
+  traefik:
+    image: traefik:v3.0
     restart: unless-stopped
+    user: root
     depends_on:
       api:
         condition: service_healthy
       web:
         condition: service_healthy
-    environment:
-      DOMAIN: ${DOMAIN:-localhost}
-      ACME_EMAIL: ${ACME_EMAIL:-}
+    command:
+      - "--global.checkNewVersion=true"
+      - "--global.sendAnonymousUsage=false"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
+      - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
+      - "--entrypoints.web.http.redirections.entrypoint.permanent=true"
+      - "--entrypoints.websecure.address=:443"
+      - "--entrypoints.websecure.http.tls.certresolver=letsencrypt"
+      - "--api.dashboard=true"
+      - "--api.debug=false"
+      - "--api.insecure=false"
+      - "--providers.file.filename=/etc/traefik/traefik.json"
+      - "--providers.file.watch=true"
+      - "--certificatesresolvers.letsencrypt.acme.email=${ACME_EMAIL:-admin@example.com}"
+      - "--certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json"
+      - "--certificatesresolvers.letsencrypt.acme.tlschallenge=true"
+      - "--log.level=INFO"
+      - "--log.format=json"
+      - "--accesslog=true"
+      - "--accesslog.format=json"
+      - "--accesslog.filepath=/var/log/traefik/access.log"
     ports:
       - "80:80"
       - "443:443"
     volumes:
-      - ${CADDYFILE:-./deploy/Caddyfile}:/etc/caddy/Caddyfile:ro
-      - caddy-data:/data
-      - caddy-config:/config
+      - ./deploy/traefik.json:/etc/traefik/traefik.json:ro
+      - letsencrypt:/letsencrypt
+      - traefik-logs:/var/log/traefik
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.traefik.rule=Host(`traefik.${DOMAIN:-localhost}`)"
+      - "traefik.http.routers.traefik.service=api@internal"
+      - "traefik.http.routers.traefik.entrypoints=websecure"
+      - "traefik.http.routers.traefik.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.traefik.middlewares=traefik-auth"
+      - "traefik.http.middlewares.traefik-auth.basicauth.users=${TRAEFIK_AUTH:-}"
 
 volumes:
   # The SQLite database and the uploaded images.
   neoams-data:
-  # The certificates Caddy obtains.
-  caddy-data:
-  caddy-config:
+  # The certificates Traefik obtains.
+  letsencrypt:
+  traefik-logs:
+
+networks:
+  default:
+    name: neoams-network

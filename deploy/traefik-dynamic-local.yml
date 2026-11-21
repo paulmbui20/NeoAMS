@@ -1,0 +1,61 @@
+# Traefik dynamic configuration for NeoAMS local development
+# Uses local certificates generated with mkcert
+
+http:
+  routers:
+    # API router - handles /api/*, /uploads/*, /reference*
+    api:
+      rule: "PathPrefix(`/api/`) || PathPrefix(`/uploads/`) || PathPrefix(`/reference`)"
+      service: api
+      middlewares:
+        - api-headers
+      entryPoints:
+        - websecure
+
+    # Web router - handles everything else
+    web:
+      rule: "PathPrefix(`/`)"
+      service: web
+      middlewares:
+        - web-headers
+      entryPoints:
+        - websecure
+
+    # Traefik dashboard
+    traefik:
+      rule: "Host(`traefik.neoams.test`)"
+      service: api@internal
+      entryPoints:
+        - websecure
+
+  services:
+    api:
+      loadBalancer:
+        servers:
+          - url: "http://api:3000"
+        passHostHeader: true
+
+    web:
+      loadBalancer:
+        servers:
+          - url: "http://web:3000"
+        passHostHeader: true
+
+  middlewares:
+    api-headers:
+      headers:
+        customRequestHeaders:
+          X-Forwarded-Proto: "https"
+        customResponseHeaders:
+          X-Content-Type-Options: "nosniff"
+          X-Frame-Options: "DENY"
+          Referrer-Policy: "strict-origin-when-cross-origin"
+
+    web-headers:
+      headers:
+        customRequestHeaders:
+          X-Forwarded-Proto: "https"
+        customResponseHeaders:
+          X-Content-Type-Options: "nosniff"
+          X-Frame-Options: "DENY"
+          Referrer-Policy: "strict-origin-when-cross-origin"

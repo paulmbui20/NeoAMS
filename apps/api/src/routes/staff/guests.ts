@@ -28,4 +28,13 @@ export const staffGuestRoutes =
     app.get("/guests/:id", { preHandler: can("guest:read") }, async (req) =>
       guest.get(parse(IdParams, req.params).id),
     );
+
+    app.patch(
+      "/guests/:id",
+      { preHandler: can("guest:write") },
+      async (req) => {
+        const { id } = parse(IdParams, req.params);
+        return guest.update(id, req.body as never);
+      },
+    );
   };

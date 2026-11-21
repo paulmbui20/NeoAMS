@@ -17,6 +17,7 @@
   import PropertyPicker from "$lib/components/shell/PropertyPicker.svelte";
   import Sidebar from "$lib/components/shell/Sidebar.svelte";
   import Toaster from "$lib/components/ui/Toaster.svelte";
+  import { Menu, Moon, Sun } from "lucide-svelte";
 
   let { children } = $props();
 
@@ -28,9 +29,17 @@
   );
 
   let mobileOpen = $state(false);
+  // Read initial dark state from the class the inline script already applied.
+  let isDark = $state(
+    typeof document !== "undefined"
+      ? document.documentElement.classList.contains("dark")
+      : false,
+  );
 
   onMount(async () => {
     await session.load();
+    // Re-read in case the reactive assignment above ran during SSR.
+    isDark = document.documentElement.classList.contains("dark");
   });
 
   /**
@@ -69,6 +78,13 @@
     if (!session.current) return;
     void workspace.load();
   });
+
+  function toggleDarkModeNative() {
+    const html = document.documentElement;
+    const dark = html.classList.toggle("dark");
+    localStorage.setItem("neoams-dark-mode", dark ? "true" : "false");
+    isDark = dark;
+  }
 </script>
 
 <svelte:head>
@@ -89,8 +105,26 @@
         ? 'translate-x-0'
         : '-translate-x-full'}"
     >
-      <div class="flex h-14 items-center border-b border-line px-4">
+      <div
+        class="flex h-14 items-center justify-between border-b border-line px-4"
+      >
         <Logo />
+        <button
+          id="dark-mode-toggle"
+          class="p-2 rounded-md hover:bg-surface-muted hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-ink cursor-pointer"
+          onclick={() => {
+            toggleDarkModeNative();
+            isDark = document.documentElement.classList.contains("dark");
+          }}
+          title={isDark ? "Switch to light mode" : "Switch to dark mode"}
+        >
+          <span class="sr-only">Toggle dark mode</span>
+          {#if isDark}
+            <Moon class="size-4" />
+          {:else}
+            <Sun class="size-4" />
+          {/if}
+        </button>
       </div>
 
       <div class="flex-1 overflow-y-auto px-3 py-4">
@@ -115,14 +149,13 @@
               </p>
             </div>
           </div>
-          <form method="POST" action="/api/auth/sign-out">
-            <button
-              type="submit"
-              class="mt-1 w-full rounded-md px-2 py-1.5 text-left text-xs text-ink-muted transition-colors hover:bg-ink-100 hover:text-ink"
-            >
-              Sign out
-            </button>
-          </form>
+          <button
+            type="button"
+            class="mt-1 w-full rounded-md px-2 py-1.5 text-left text-xs text-ink-muted transition-colors hover:bg-ink-100 hover:text-ink"
+            onclick={() => session.signOut()}
+          >
+            Sign out
+          </button>
         </div>
       {/if}
     </aside>
@@ -143,23 +176,11 @@
       >
         <button
           type="button"
-          class="-ml-1 rounded-md p-1.5 text-ink-600 hover:bg-ink-100 lg:hidden"
+          class="-ml-1 rounded-md p-1.5 text-ink-600 hover:bg-ink-100 hover:text-ink cursor-pointer lg:hidden"
           onclick={() => (mobileOpen = true)}
           aria-label="Open the navigation"
         >
-          <svg
-            class="size-5"
-            viewBox="0 0 20 20"
-            fill="none"
-            aria-hidden="true"
-          >
-            <path
-              d="M3 5.5h14M3 10h14M3 14.5h14"
-              stroke="currentColor"
-              stroke-width="1.5"
-              stroke-linecap="round"
-            />
-          </svg>
+          <Menu class="size-5" />
         </button>
 
         <PropertyPicker
@@ -175,6 +196,23 @@
         />
 
         <div class="flex-1"></div>
+
+        <button
+          type="button"
+          class="p-2 rounded-md hover:bg-surface-muted hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-ink cursor-pointer lg:hidden"
+          onclick={() => {
+            toggleDarkModeNative();
+            isDark = document.documentElement.classList.contains("dark");
+          }}
+          title={isDark ? "Switch to light mode" : "Switch to dark mode"}
+        >
+          <span class="sr-only">Toggle dark mode</span>
+          {#if isDark}
+            <Moon class="size-4" />
+          {:else}
+            <Sun class="size-4" />
+          {/if}
+        </button>
 
         {#if session.user}
           <a

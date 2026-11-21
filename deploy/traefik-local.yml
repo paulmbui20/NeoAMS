@@ -1,0 +1,45 @@
+# Traefik static configuration for NeoAMS local development
+# Uses local certificates generated with mkcert
+
+global:
+  checkNewVersion: true
+  sendAnonymousUsage: false
+
+entryPoints:
+  web:
+    address: ":80"
+    http:
+      redirections:
+        entryPoint:
+          to: websecure
+          scheme: https
+          permanent: true
+
+  websecure:
+    address: ":443"
+    http:
+      tls: {}
+
+api:
+  dashboard: true
+  debug: true
+  insecure: true
+
+providers:
+  docker:
+    endpoint: "unix:///var/run/docker.sock"
+    exposedByDefault: false
+    network: neoams-network
+    watch: true
+    tls: false
+  file:
+    filename: /etc/traefik/traefik-dynamic-local.yml
+    watch: true
+
+log:
+  level: DEBUG
+  format: json
+
+accessLog:
+  format: json
+  filePath: /var/log/traefik/access.log

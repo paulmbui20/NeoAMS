@@ -13,7 +13,11 @@ export const createAuth = (db: Db, env: Env) =>
       enabled: true,
       disableSignUp: true, // Disable public sign-ups as per spec
     },
-    trustedOrigins: [env.FRONTEND_URL],
+    trustedOrigins: [
+      env.FRONTEND_URL,
+      "http://localhost:5173",
+      "https://localhost",
+    ],
     user: {
       additionalFields: {
         role: { type: "string", input: false },
@@ -47,6 +51,16 @@ export const createAuth = (db: Db, env: Env) =>
         "/sign-up/email": { window: 60, max: 5 },
         "/change-password": { window: 60, max: 10 },
       },
+    },
+    // Cookie configuration: in production (behind Caddy/Traefik) we use
+    // SameSite=Lax. In development (separate ports) we need SameSite=None
+    // with Secure, which requires HTTPS. For local HTTP development we
+    // use a laxer setting that works cross-origin on localhost.
+    cookieOptions: {
+      sameSite: env.TRUST_PROXY ? "lax" : "none",
+      secure: env.TRUST_PROXY,
+      // Allow cookies to work on localhost across ports in development
+      domain: env.TRUST_PROXY ? undefined : "localhost",
     },
     advanced: {
       ipAddress: {

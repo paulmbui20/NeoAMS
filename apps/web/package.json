@@ -23,6 +23,7 @@
     "vite": "^8.3.8"
   },
   "dependencies": {
-    "@neoams/shared": "workspace:*"
+    "@neoams/shared": "workspace:*",
+    "lucide-svelte": "^1.0.1"
   }
 }

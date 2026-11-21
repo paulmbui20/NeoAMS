@@ -66,13 +66,19 @@ export function buildApp(c: Container) {
 
   // Defence in depth on top of SameSite=Lax cookies: a cross-site write
   // with an unexpected Origin is refused before it reaches a handler.
+  // In development, also accept the Vite dev server origin and local Traefik.
+  const allowedOrigins = [
+    c.env.FRONTEND_URL,
+    "http://localhost:5173",
+    "https://localhost",
+  ];
   app.addHook("onRequest", async (req, reply) => {
     const origin = req.headers.origin;
     if (
       req.method !== "GET" &&
       req.method !== "OPTIONS" &&
       origin &&
-      origin !== c.env.FRONTEND_URL
+      !allowedOrigins.includes(origin)
     ) {
       return reply.code(403).send({
         error: {
@@ -85,7 +91,7 @@ export function buildApp(c: Container) {
   });
 
   app.register(fastifyCors, {
-    origin: c.env.FRONTEND_URL,
+    origin: allowedOrigins,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
     credentials: true,

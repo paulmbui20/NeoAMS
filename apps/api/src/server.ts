@@ -1,4 +1,5 @@
 // src/server.ts
+// Run `bun src/db/seed.ts` to seed sample data for development.
 import { buildApp } from "./app";
 import { createContainer } from "./container";
 import { createDb } from "./db";
